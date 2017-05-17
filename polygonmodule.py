@@ -1,13 +1,24 @@
-
+def line(s, array):
+	top = max(array[1])
+	left = max(array[0]) 	#Actually this is right most point
+	
+	
+	s.Line(point1=(-2*left, -top), point2=(2*left, -top))
 
 
 def sketch(s, array):
 #Given 2D array of xy coordinates, sketches polygon using shapes 
+#	a = mdb.models['standard'].rootAssembly
+#	s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
+
 	for i in range(0, len(array[0])-1):
    		s.Line(point1=(array[0][i], array[1][i]), point2=(array[0][i+1], array[1][i+1]))
+
+	
+
 def vertices(startx, starty, radius, sides):
 #Returns the coordinates of the vertices of a (sides)-dimensional polygon 
-#centered at startx, starty of a certain radius
+#centered at startx, starty of a certain radius (currently the code only works for 0,0) 
 
    xarray = []
    yarray = []
@@ -73,6 +84,9 @@ def radiusgen(perimeter, sides):
 	return radius
 
 def bc_bot(mdb, vertices):
+	
+	from abaqus import *
+	from abaqusConstants import *
 #a = mdb.models['standard'].rootAssembly
 #Given array of vertices, applies encastre BC to the bottom most point or points 
 #Max is always at vertices[0][0] but only apply velocity if specified and force if specified
@@ -89,7 +103,45 @@ def bc_bot(mdb, vertices):
 	else:
 		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
 		mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', region=region)
-		
+
+#Lock down the plane 
+	a = mdb.models['standard'].rootAssembly
+    	region = a.instances['plane-1'].sets['plane']
+    	mdb.models['standard'].DisplacementBC(name='planelock', 
+        createStepName='Apply load', region=region, u1=SET, u2=SET, ur3=SET, 
+        amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+        localCsys=None)
+
+	bottom = min(vertices[1])
+	left = min(vertices[0])
+#Constrain the edges
+	s1 = a.instances['Frame-1'].edges
+    	side2Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,-1.02*bottom,0)
+    	region=a.Surface(side2Edges=side2Edges1, name='Surf-2')
+	mdb.models['standard'].ContactProperty('interior')
+    	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
+        pressureOverclosure=HARD, allowSeparation=ON, 
+        constraintEnforcementMethod=DEFAULT)
+
+    	mdb.models['standard'].SelfContactStd(name='interiorcontact', 
+        createStepName='Apply load', surface=region, 
+        interactionProperty='interior', enforcement=NODE_TO_SURFACE, 
+        thickness=OFF, smooth=0.2) 
+
+#Contact between plane and polygon
+	a = mdb.models['standard'].rootAssembly
+    	s1 = a.instances['plane-1'].edges
+    	side1Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,0.99*bottom,0)
+    	region1=a.Surface(side1Edges=side1Edges1, name='plane')
+    	a = mdb.models['standard'].rootAssembly
+    	region2=a.instances['Frame-1'].sets['polygon']
+    	mdb.models['standard'].SurfaceToSurfaceContactStd(name='planeandframe', 
+        createStepName='Apply load', master=region1, slave=region2, 
+        sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
+        interactionProperty='interior', surfaceSmoothing=NONE, 
+        adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
+        clearanceRegion=None)
+
 def loader(mdb, vertices, force=0, velocity=False, velx=0, vely=0, velr3=0, time=2.0, maxinc=10000, initinc=0.01, minimum=2e-05, maximum=0.025):
 #Must give at least one argument for this to work 
 	from abaqus import *
@@ -102,7 +154,7 @@ def loader(mdb, vertices, force=0, velocity=False, velx=0, vely=0, velr3=0, time
 		mdb.models['standard'].StaticStep(name='Apply load', previous='Initial', description='Description', timePeriod=time, maxNumInc=maxinc, 
         	initialInc=initinc, minInc=minimum, maxInc=maximum)
     		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-
+		
 		verts1 = v.findAt(((vertices[0][0], vertices[1][0], 0.0), ))
     		region = a.Set(vertices=verts1, name='topnode')
     		mdb.models['standard'].VelocityBC(name='velocity', createStepName='Apply load', 
