@@ -19,14 +19,15 @@ def sketch(s, array):
 def vertices(startx, starty, radius, sides):
 #Returns the coordinates of the vertices of a (sides)-dimensional polygon 
 #centered at startx, starty of a certain radius (currently the code only works for 0,0) 
-
+   mainangle = 2*3.14159265/sides
    xarray = []
    yarray = []
    for i in range(0, sides):
-	angle = 2*3.14159265*i/sides
+	angle = mainangle*(i+0.5)
+	
 	sincos = trig(angle) 
-	xval = startx + radius*sincos[0]
-	yval = starty + radius*sincos[1]
+	xval = startx + radius*(sincos[0])
+	yval = starty + radius*(sincos[1]) 
 
 	xarray.append(xval)
 	yarray.append(yval)
@@ -41,9 +42,9 @@ def trig(x):
 #are constrained 
 	if x < -3.14159265: 
     	   x += 6.28318531
-	else:
-	   if (x >  3.14159265):
+	elif x >  3.14159265:
     	      x -= 6.28318531
+	   
 #compute sine
 	if x<0:
 		sin = 1.27323954 * x + .405284735 * x * x
@@ -83,40 +84,40 @@ def radiusgen(perimeter, sides):
 	radius = (perimeter/sides)/(2*sincos[0])
 	return radius
 
-def bc_bot(mdb, vertices):
-	
+def bc_bot(mdb, vertices, thickness):
+#Given array of vertices, applies encastre BC to the bottom most point or points 
 	from abaqus import *
 	from abaqusConstants import *
-#a = mdb.models['standard'].rootAssembly
-#Given array of vertices, applies encastre BC to the bottom most point or points 
-#Max is always at vertices[0][0] but only apply velocity if specified and force if specified
 	output = []
 	num_vert = len(vertices[0])
 	a = mdb.models['standard'].rootAssembly
 	v = a.instances['Frame-1'].vertices
-	if num_vert%2 != 1:	#Odd number of sides so two points on the bottom need to be fixed
+	if num_vert%2 != 0:	#Odd number of sides so two points on the bottom need to be fixed
 		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
 		mdb.models['standard'].EncastreBC(name='Fixedright', createStepName='Initial', region=region)
 		
-		region=(v.findAt(((vertices[0][num_vert/2+1], vertices[1][num_vert/2+1], 0.0), ), ), None, None, None)
+		region=(v.findAt(((vertices[0][num_vert/2-1], vertices[1][num_vert/2-1], 0.0), ), ), None, None, None)
 		mdb.models['standard'].EncastreBC(name='Fixedleft', createStepName='Initial', region=region)
 	else:
 		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
 		mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', region=region)
+	
+	bottom = min(vertices[1])
+	left = min(vertices[0])
 
 #Lock down the plane 
 	a = mdb.models['standard'].rootAssembly
-    	region = a.instances['plane-1'].sets['plane']
+	s1 = a.instances['plane-1'].edges
+	side2Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,0.99*bottom,0)
+	region=a.Set(edges=side2Edges1, name='planar')
     	mdb.models['standard'].DisplacementBC(name='planelock', 
         createStepName='Apply load', region=region, u1=SET, u2=SET, ur3=SET, 
         amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
         localCsys=None)
 
-	bottom = min(vertices[1])
-	left = min(vertices[0])
 #Constrain the edges
 	s1 = a.instances['Frame-1'].edges
-    	side2Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,-1.02*bottom,0)
+    	side2Edges1 = s1.getByBoundingSphere((0,0,0),-1*bottom)
     	region=a.Surface(side2Edges=side2Edges1, name='Surf-2')
 	mdb.models['standard'].ContactProperty('interior')
     	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
@@ -131,7 +132,7 @@ def bc_bot(mdb, vertices):
 #Contact between plane and polygon
 	a = mdb.models['standard'].rootAssembly
     	s1 = a.instances['plane-1'].edges
-    	side1Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,0.99*bottom,0)
+    	side1Edges1 = s1.getByBoundingBox(3*left,1.02*bottom,0,-3*left,0.99*bottom,0)
     	region1=a.Surface(side1Edges=side1Edges1, name='plane')
     	a = mdb.models['standard'].rootAssembly
     	region2=a.instances['Frame-1'].sets['polygon']

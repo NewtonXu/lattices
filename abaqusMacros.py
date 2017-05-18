@@ -1,138 +1,191 @@
-# Getting Started with Abaqus: Interactive Edition
-#
-# Script for frame example
-#
-#
-
-from abaqus import *
-from abaqusConstants import *
-session.viewports['Viewport: 1'].makeCurrent()
-session.viewports['Viewport: 1'].maximize()
-session.journalOptions.setValues(replayGeometry=COORDINATE, 
-    recoverGeometry=COORDINATE)
-from caeModules import *
-from driverUtils import executeOnCaeStartup
-import polygonmodule
-executeOnCaeStartup()
-Mdb()
-
-mdb.models.changeKey(fromName='Model-1', toName='standard')
-
-##
-##  Sketch profile of frame
-##
-vex = polygonmodule.vertices(0, 0, 0.67, 12) 
-
-s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
-g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
-s.setPrimaryObject(option=STANDALONE)
-polygonmodule.sketch(s, vex) 
-
-p = mdb.models['standard'].Part(name='Frame', dimensionality=TWO_D_PLANAR, 
-    type=DEFORMABLE_BODY)
-p = mdb.models['standard'].parts['Frame']
-p.BaseWire(sketch=s)
-s.unsetPrimaryObject()
-
-p = mdb.models['standard'].parts['Frame']
-session.viewports['Viewport: 1'].setValues(displayedObject=p)
-del mdb.models['standard'].sketches['__profile__']
-##
-##  Create material 'Steel'
-##
-mdb.models['standard'].Material('Steel')
-mdb.models['standard'].materials['Steel'].Elastic(table=((200.E9, 0.3), ))
-##
-##  Create truss section
-##
-mdb.models['standard'].TrussSection(name='FrameSection', material='Steel', 
-    area=1.963E-05)
-##
-##  Assign truss section
-##
-e = p.edges
-edges = e
-region = regionToolset.Region(edges=edges)
-p.SectionAssignment(region=region, sectionName='FrameSection')
-
-a = mdb.models['standard'].rootAssembly
-session.viewports['Viewport: 1'].setValues(displayedObject=a)
-##
-##  Set coordinate system (done by default)
-##
-a = mdb.models['standard'].rootAssembly
-a.DatumCsysByDefault(CARTESIAN)
-##
-##  Instance the frame
-##
-p = mdb.models['standard'].parts['Frame']
-a.Instance(name='Frame-1', part=p, dependent=ON)
-p1 = a.instances['Frame-1']
-#p1.translate(vector=(-0.035794, 0.331227, 0.0))
-##
-##  Create a static linear perturbation step
-##
-mdb.models['standard'].StaticLinearPerturbationStep(name='Apply load', 
-    previous='Initial', description='10kN central load', 
-    matrixSolver=SOLVER_DEFAULT)
-session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
-    variables=PRESELECT, region=MODEL)
-##
-##  Apply concentrated force to bottom center
-##
-v = a.instances['Frame-1'].vertices
-region=((v.findAt(((0.4, 0.4, 0.0), ), ), ), )
-mdb.models['standard'].ConcentratedForce(name='Force', 
-    createStepName='Apply load', 
-    region=region, cf2=-100000.0)
-##
-##  Apply encastre bc to bottom left corner
-##
-region=(v.findAt(((-0.4, -0.2, 0.0), ), ), None, None, None)
-mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', 
-    region=region)
-##
-##  Apply roller bc to bottom right corner
-##
-region=(v.findAt(((-0.4, 0.4, 0.0), ), ), None, None, None)
-mdb.models['standard'].EncastreBC(name='Fixedtop', 
-    createStepName='Initial', region=region)
-##
-##  Assign global seed
-##
-p.seedPart(size=1.0)
-##
-##  Assign element type
-##
-elemType1 = mesh.ElemType(elemCode=T2D2)
-e = p.edges
-edges = e
-pickedRegions =(edges, )
-p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
-##
-##  Generate mesh
-##
-p.generateMesh()
-##
-##  Create job
-##
-mdb.Job(name='Frame', model='standard', 
-    description='Two-dimensional overhead hoist frame')
-mdb.jobs['Frame'].setValues(echoPrint=ON, modelPrint=ON, contactPrint=ON, 
-    historyPrint=ON)
-
-session.viewports['Viewport: 1'].view.fitView()
-
-##
-##  Save model database
-##
-mdb.saveAs('Frame')
-
-##
-
-a = mdb.models['standard'].rootAssembly
-a.regenerate()
+def tplanar():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
+    g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
+    s.setPrimaryObject(option=STANDALONE)
+    s.Line(point1=(0.0, 0.0), point2=(0.0, 1.0))
+    s.VerticalConstraint(entity=g.findAt((0.0, 0.5)), addUndoState=False)
+    s.Line(point1=(0.0, 1.0), point2=(1.0, 1.0))
+    s.HorizontalConstraint(entity=g.findAt((0.5, 1.0)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((0.0, 0.5)), entity2=g.findAt((0.5, 
+        1.0)), addUndoState=False)
+    s.Line(point1=(1.0, 1.0), point2=(1.0, 0.0))
+    s.VerticalConstraint(entity=g.findAt((1.0, 0.5)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((0.5, 1.0)), entity2=g.findAt((1.0, 
+        0.5)), addUndoState=False)
+    s.Line(point1=(1.0, 0.0), point2=(0.0, 0.0))
+    s.HorizontalConstraint(entity=g.findAt((0.5, 0.0)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((1.0, 0.5)), entity2=g.findAt((0.5, 
+        0.0)), addUndoState=False)
+    s.Line(point1=(0.25, 0.25), point2=(0.75, 0.25))
+    s.HorizontalConstraint(entity=g.findAt((0.5, 0.25)), addUndoState=False)
+    s.Line(point1=(0.75, 0.25), point2=(0.75, 0.75))
+    s.VerticalConstraint(entity=g.findAt((0.75, 0.5)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((0.5, 0.25)), entity2=g.findAt((
+        0.75, 0.5)), addUndoState=False)
+    s.Line(point1=(0.75, 0.75), point2=(0.25, 0.75))
+    s.HorizontalConstraint(entity=g.findAt((0.5, 0.75)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((0.75, 0.5)), entity2=g.findAt((0.5, 
+        0.75)), addUndoState=False)
+    s.Line(point1=(0.25, 0.75), point2=(0.25, 0.25))
+    s.VerticalConstraint(entity=g.findAt((0.25, 0.5)), addUndoState=False)
+    s.PerpendicularConstraint(entity1=g.findAt((0.5, 0.75)), entity2=g.findAt((
+        0.25, 0.5)), addUndoState=False)
+    p = mdb.models['Model-1'].Part(name='Part-1', dimensionality=TWO_D_PLANAR, 
+        type=DEFORMABLE_BODY)
+    p = mdb.models['Model-1'].parts['Part-1']
+    p.BaseShell(sketch=s)
+    s.unsetPrimaryObject()
+    p = mdb.models['Model-1'].parts['Part-1']
+    session.viewports['Viewport: 1'].setValues(displayedObject=p)
+    del mdb.models['Model-1'].sketches['__profile__']
 
 
-mdb.save()
+def rigidplane():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    a = mdb.models['standard'].rootAssembly
+    session.viewports['Viewport: 1'].setValues(displayedObject=a)
+    session.viewports['Viewport: 1'].assemblyDisplay.setValues(loads=ON, bcs=ON, 
+        predefinedFields=ON, connectors=ON, optimizationTasks=OFF, 
+        geometricRestrictions=OFF, stopConditions=OFF)
+    a = mdb.models['standard'].rootAssembly
+    e1 = a.instances['plane-1'].edges
+    edges1 = e1.findAt(((-0.619292, -0.619292, 0.0), ))
+    region = a.Set(edges=edges1, name='planar')
+    mdb.models['standard'].DisplacementBC(name='rigidplane', 
+        createStepName='Apply load', region=region, u1=0.0, u2=0.0, ur3=0.0, 
+        amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+        localCsys=None)
+
+
+def orientation():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    p = mdb.models['standard'].parts['plane']
+    e = p.edges
+    edges = e.findAt(((-0.619292, -0.619292, 0.0), ))
+    region = p.Set(edges=edges, name='planar')
+    p = mdb.models['standard'].parts['plane']
+    p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
+        offsetType=MIDDLE_SURFACE, offsetField='', 
+        thicknessAssignment=FROM_SECTION)
+
+
+def section():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    p1 = mdb.models['standard'].parts['plane']
+    session.viewports['Viewport: 1'].setValues(displayedObject=p1)
+    mdb.models['standard'].BeamSection(name='Section-3', 
+        integration=DURING_ANALYSIS, poissonRatio=0.0, profile='Profile-1', 
+        material='Rigidbody', temperatureVar=LINEAR, 
+        consistentMassMatrix=False)
+    mdb.models['standard'].BeamSection(name='Section-4', 
+        integration=DURING_ANALYSIS, poissonRatio=0.3, profile='Profile-1', 
+        material='Rigidbody', temperatureVar=LINEAR, 
+        consistentMassMatrix=False)
+    mdb.models['standard'].HomogeneousSolidSection(name='Section-5', 
+        material='Rigidbody', thickness=None)
+    mdb.models['standard'].SurfaceSection(name='Section-6', useDensity=OFF)
+    p = mdb.models['standard'].parts['plane']
+    e = p.edges
+    edges = e.findAt(((-0.619292, -0.619292, 0.0), ))
+    region=p.Set(edges=edges, name='planar')
+    mdb.models['standard'].parts['plane'].sectionAssignments[0].setValues(
+        region=region)
+
+
+def property():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    p = mdb.models['standard'].parts['Frame']
+    session.viewports['Viewport: 1'].setValues(displayedObject=p)
+    mdb.models['standard'].HomogeneousSolidSection(name='Section-3', 
+        material='Steel', thickness=1.0)
+    p = mdb.models['standard'].parts['Frame']
+    f = p.faces
+    faces = f.findAt(((0.364377, 0.467393, 0.0), ))
+    region = p.Set(faces=faces, name='everything')
+    p = mdb.models['standard'].parts['Frame']
+    p.SectionAssignment(region=region, sectionName='Section-3', offset=0.0, 
+        offsetType=MIDDLE_SURFACE, offsetField='', 
+        thicknessAssignment=FROM_SECTION)
+
+

@@ -16,10 +16,16 @@ from caeModules import *
 from driverUtils import executeOnCaeStartup
 executeOnCaeStartup()
 Mdb()
+##
+##Define inputs here
+##
 startx = 0
 starty = 0
 radius = 0.67
 sides = 8
+thickness = 0.1
+
+
 left = -radius
 bottom = -radius
 vex = polygonmodule.vertices(startx, starty, radius, sides)
@@ -32,10 +38,12 @@ s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
 polygonmodule.sketch(s,vex)
+vex2 = polygonmodule.vertices(startx, starty, radius-thickness, sides)
+polygonmodule.sketch(s,vex2) 
 p = mdb.models['standard'].Part(name='Frame', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['Frame']
-p.BaseWire(sketch=s)
+p.BaseShell(sketch=s)
 s.unsetPrimaryObject()
 p = mdb.models['standard'].parts['Frame']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
@@ -98,7 +106,7 @@ session.viewports['Viewport: 1'].setValues(displayedObject=p1)
 p = mdb.models['standard'].parts['plane']
 e = p.edges
 edges = e.getByBoundingBox(-3*radius, -1.01*radius,0,3*radius,-0.99*radius,0)
-region = p.Set(edges=edges, name='plane')
+region = p.Set(edges=edges, name='planar')
 p = mdb.models['standard'].parts['plane']
 p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
         offsetType=MIDDLE_SURFACE, offsetField='', 
@@ -120,7 +128,7 @@ session.viewports['Viewport: 1'].partDisplay.geometryOptions.setValues(
 p = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 p = mdb.models['standard'].parts['plane']
-region=p.sets['plane']
+region=p.sets['planar']
 p = mdb.models['standard'].parts['plane']
 p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
 p = mdb.models['standard'].parts['Frame']
@@ -150,7 +158,7 @@ polygonmodule.loader(mdb, vex, velocity = True, vely=-0.001, time = 50)
 ##
 ##  Apply encastre bc to bottom left corner
 ##
-polygonmodule.bc_bot(mdb, vex) 
+polygonmodule.bc_bot(mdb, vex, thickness) 
 ##
 ##  Assign global seed
 ##
