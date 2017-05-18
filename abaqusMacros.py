@@ -189,3 +189,31 @@ def property():
         thicknessAssignment=FROM_SECTION)
 
 
+def assignplane():
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    p = mdb.models['standard'].parts['plane']
+    e = p.edges
+    edges = e.findAt(((-0.619292, -0.619292, 0.0), ))
+    region = p.Set(edges=edges, name='plane2')
+    p = mdb.models['standard'].parts['plane']
+    p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
+        offsetType=MIDDLE_SURFACE, offsetField='', 
+        thicknessAssignment=FROM_SECTION)
+
+

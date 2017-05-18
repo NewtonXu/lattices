@@ -105,12 +105,25 @@ p1 = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p1)
 p = mdb.models['standard'].parts['plane']
 e = p.edges
-edges = e.getByBoundingBox(-3*radius, -1.01*radius,0,3*radius,-0.99*radius,0)
+edges = e.getByBoundingBox(-3.1*radius, -3*radius,0,3.1*radius,0,0)
 region = p.Set(edges=edges, name='planar')
 p = mdb.models['standard'].parts['plane']
 p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
         offsetType=MIDDLE_SURFACE, offsetField='', 
         thicknessAssignment=FROM_SECTION)
+
+p = mdb.models['standard'].parts['Frame']
+session.viewports['Viewport: 1'].setValues(displayedObject=p)
+mdb.models['standard'].HomogeneousSolidSection(name='Section-3', 
+    material='Steel', thickness=1.0)
+p = mdb.models['standard'].parts['Frame']
+f = p.faces
+faces = f.findAt(((0.364377, 0.467393, 0.0), ))
+region = p.Set(faces=faces, name='everything')
+p = mdb.models['standard'].parts['Frame']
+p.SectionAssignment(region=region, sectionName='Section-3', offset=0.0, 
+    offsetType=MIDDLE_SURFACE, offsetField='', 
+    thicknessAssignment=FROM_SECTION)
 
 ##
 ##  Set coordinate system (done by default)
