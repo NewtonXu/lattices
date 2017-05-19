@@ -26,9 +26,9 @@ sides = 8
 thickness = 0.1
 
 
-left = -radius
-bottom = -radius
 vex = polygonmodule.vertices(startx, starty, radius, sides)
+left = min(vex[0])
+bottom = min(vex[1])
 mdb.models.changeKey(fromName='Model-1', toName='standard')
 
 ##
@@ -55,7 +55,7 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,vex)
+polygonmodule.line(s,left,-bottom)
 p = mdb.models['standard'].Part(name='plane', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['plane']
@@ -64,6 +64,22 @@ s.unsetPrimaryObject()
 p = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 del mdb.models['standard'].sketches['__profile__']
+##
+##  Sketch top plane
+##
+s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
+g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
+s.setPrimaryObject(option=STANDALONE)
+polygonmodule.line(s,left,bottom)
+p = mdb.models['standard'].Part(name='planetop', dimensionality=TWO_D_PLANAR, 
+    type=DEFORMABLE_BODY)
+p = mdb.models['standard'].parts['planetop']
+p.BaseWire(sketch=s)
+s.unsetPrimaryObject()
+p = mdb.models['standard'].parts['planetop']
+session.viewports['Viewport: 1'].setValues(displayedObject=p)
+del mdb.models['standard'].sketches['__profile__']
+
 
 ##
 ##  Create material 'Steel'
@@ -112,6 +128,18 @@ p.SectionAssignment(region=region, sectionName='plane', offset=0.0,
         offsetType=MIDDLE_SURFACE, offsetField='', 
         thicknessAssignment=FROM_SECTION)
 
+p1 = mdb.models['standard'].parts['planetop']
+session.viewports['Viewport: 1'].setValues(displayedObject=p1)
+p = mdb.models['standard'].parts['planetop']
+e = p.edges
+edges = e.getByBoundingBox(-3.1*radius, 0,0,3.1*radius,3*radius,0)
+region = p.Set(edges=edges, name='planar2')
+p = mdb.models['standard'].parts['planetop']
+p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
+        offsetType=MIDDLE_SURFACE, offsetField='', 
+        thicknessAssignment=FROM_SECTION)
+
+
 p = mdb.models['standard'].parts['Frame']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 mdb.models['standard'].HomogeneousSolidSection(name='Section-3', 
@@ -144,6 +172,14 @@ p = mdb.models['standard'].parts['plane']
 region=p.sets['planar']
 p = mdb.models['standard'].parts['plane']
 p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
+
+p = mdb.models['standard'].parts['planetop']
+session.viewports['Viewport: 1'].setValues(displayedObject=p)
+p = mdb.models['standard'].parts['planetop']
+region=p.sets['planar2']
+p = mdb.models['standard'].parts['planetop']
+p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
+
 p = mdb.models['standard'].parts['Frame']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 p = mdb.models['standard'].parts['Frame']
@@ -159,6 +195,8 @@ p = mdb.models['standard'].parts['Frame']
 a.Instance(name='Frame-1', part=p, dependent=ON)
 p = mdb.models['standard'].parts['plane']
 a.Instance(name='plane-1', part=p, dependent=ON)
+p = mdb.models['standard'].parts['planetop']
+a.Instance(name='planetop-1', part=p, dependent=ON)
 #p1 = a.instances['Frame-1']
 #p1.translate(vector=(-0.035794, 0.331227, 0.0))
 ##

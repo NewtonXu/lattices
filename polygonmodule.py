@@ -1,7 +1,5 @@
-def line(s, array):
-	top = max(array[1])
-	left = max(array[0]) 	#Actually this is right most point
-	
+def line(s, left, top):
+		
 	
 	s.Line(point1=(-2*left, -top), point2=(2*left, -top))
 
