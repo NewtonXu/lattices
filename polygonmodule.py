@@ -1,86 +1,162 @@
 def line(s, left, top):
-		
-	
-	s.Line(point1=(-2*left, -top), point2=(2*left, -top))
+
+    s.Line(point1=(-2 * left, -top), point2=(2 * left, -top))
+
 
 
 def sketch(s, array):
-#Given 2D array of xy coordinates, sketches polygon using shapes 
-#	a = mdb.models['standard'].rootAssembly
-#	s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 
-	for i in range(0, len(array[0])-1):
-   		s.Line(point1=(array[0][i], array[1][i]), point2=(array[0][i+1], array[1][i+1]))
+# Given 2D array of xy coordinates, sketches polygon using shapes
+# ....a = mdb.models['standard'].rootAssembly
+# ....s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 
+    for i in range(0, len(array[0]) - 1):
+        s.Line(point1=(array[0][i], array[1][i]), point2=(array[0][i
+               + 1], array[1][i + 1]))
+def advancedpolygon(
+    inradius,
+    thickness,
+    sides,
+    distance,
+    ):
+	print("advanced polygon started")
+	innervertices = vertices(0,0, inradius, sides)
+	outervertices = vertices(0,0, inradius+thickness, sides)
+
+	innervleft = [innervertices[0][0:len(innervertices[0])//2],innervertices[1][0:len(innervertices[0])//2]]
+	innervright = [innervertices[0][len(innervertices[0])//2:len(innervertices[0])-1],innervertices[1][len(innervertices[0])//2:len(innervertices[0])-1]]
+
+	outervleft = [outervertices[0][0:len(outervertices[0])//2],outervertices[1][0:len(outervertices[0])//2]]
+	outervright = [outervertices[0][len(outervertices[0])//2:len(outervertices[0])-1],outervertices[1][len(outervertices[0])//2:len(outervertices[0])-1]]
+
+	topnodeouter = max(outervertices[1])
+	topnodeinner = max(innervertices[1])
+	leftnodeouter = max(outervertices[1])
 	
-
-def vertices(startx, starty, radius, sides):
-#Returns the coordinates of the vertices of a (sides)-dimensional polygon 
-#centered at startx, starty of a certain radius (currently the code only works for 0,0) 
-   mainangle = 2*3.14159265/sides
-   xarray = []
-   yarray = []
-   for i in range(0, sides):
-	angle = mainangle*(i+0.5)
+	arrayleft = [[0,0],[topnodeinner,topnodeouter]]
+	arrayleft[0].extend(outervleft[0])
+	arrayleft[1].extend(outervleft[1])
+	arrayleft[0].extend([0,0])
+	arrayleft[1].extend([-topnodeouter,-topnodeinner])
+	arrayleft[0].extend(list(reversed(innervleft[0])))
+	arrayleft[1].extend(list(reversed(innervleft[1])))
+	arrayleft[0].append(0)
+	arrayleft[1].append(topnodeinner)
+	print(arrayleft)
+	print("/n")
 	
-	sincos = trig(angle) 
-	xval = startx + radius*(sincos[0])
-	yval = starty + radius*(sincos[1]) 
+	translatedleft = list(map(lambda x: x-leftnodeouter-distance, arrayleft[0]))
+	
+	arrayleftf = [translatedleft, arrayleft[1]]
+	
+	arrayright = [[0,0],[topnodeouter,topnodeinner]]
+	arrayright[0].extend(list(reversed(innervright[0])))
+	arrayright[1].extend(list(reversed(innervright[1])))
+	arrayright[0].extend([0,0])
+	arrayright[1].extend([-topnodeinner,-topnodeouter])
+	arrayright[0].extend(outervright[0])
+	arrayright[1].extend(outervright[1])
+	arrayright[0].append(0)
+	arrayright[1].append(topnodeouter)
 
-	xarray.append(xval)
-	yarray.append(yval)
-   #append starting point so line can return to starting vertice 
-   xarray.append(xarray[0])
-   yarray.append(yarray[0])
-   return [xarray, yarray]
+	translatedright = list(map(lambda x: x+leftnodeouter+distance, arrayright[0]))
+        arrayrightf = [translatedright, arrayright[1]]
+    
+	return [arrayleftf, arrayrightf]
+
+
+
+
+def vertices(
+    startx,
+    starty,
+    radius,
+    sides,
+    ):
+
+# Returns the coordinates of the vertices of a (sides)-dimensional polygon
+# centered at startx, starty of a certain radius (currently the code only works for 0,0)
+
+    mainangle = 2 * 3.14159265 / sides
+    xarray = []
+    yarray = []
+    for i in range(0, sides):
+        angle = mainangle * (i + 0.5)
+
+        sincos = trig(angle)
+        xval = startx + radius * sincos[0]
+        yval = starty + radius * sincos[1]
+
+        xarray.append(xval)
+        yarray.append(yval)
+
+   # append starting point so line can return to starting vertice
+
+    xarray.append(xarray[0])
+    yarray.append(yarray[0])
+    return [xarray, yarray]
+
+
 def trig(x):
-#Returns sin and cos of angle x (rad) 
-#http://lab.polygonal.de/2007/07/18/fast-and-accurate-sinecosine-approximation/
-#Low degree of precision required because CAE should automatically get correct angle once sides 
-#are constrained 
-	if x < -3.14159265: 
-    	   x += 6.28318531
-	elif x >  3.14159265:
-    	      x -= 6.28318531
-	   
-#compute sine
-	if x<0:
-		sin = 1.27323954 * x + .405284735 * x * x
-		if sin<0: 
-    	   		sin = .225*(sin*(-sin)-sin)+sin
-		else:
-    	   		sin = .225*(sin*sin-sin)+sin
-	else:
-		sin = 1.27323954 * x - .405284735 * x * x
-		if sin < 0:
-			sin = .225*(sin*(-sin)-sin)+sin
-		else:
-			sin = .225*(sin*sin-sin)+sin
-#compute cosine: sin(x + PI/2) = cos(x)
-	x += 1.57079632;
-	if x >  3.14159265:
-    	  	x -= 6.28318531;
-	if x<0:
-    		cos = 1.27323954 * x + 0.405284735 * x * x
-		if cos < 0:
-			cos = .225*(cos*(-cos)-cos)+cos
-		else:
-			cos = .225*(cos*cos-cos) + cos
-	else:
-      		cos = 1.27323954 * x - 0.405284735 * x * x
-		if cos < 0:
-			cos = .225*(cos*(-cos)-cos)+cos
-		else:
-			cos = .225*(cos*cos-cos)+cos
 
-	return sin,cos #return tuple
+# Returns sin and cos of angle x (rad)
+# http://lab.polygonal.de/2007/07/18/fast-and-accurate-sinecosine-approximation/
+# Low degree of precision required because CAE should automatically get correct angle once sides
+# are constrained
+
+    if x < -3.14159265:
+        x += 6.28318531
+    elif x > 3.14159265:
+        x -= 6.28318531
+
+# compute sine
+
+    if x < 0:
+        sin = 1.27323954 * x + .405284735 * x * x
+        if sin < 0:
+            sin = .225 * (sin * -sin - sin) + sin
+        else:
+            sin = .225 * (sin * sin - sin) + sin
+    else:
+        sin = 1.27323954 * x - .405284735 * x * x
+        if sin < 0:
+            sin = .225 * (sin * -sin - sin) + sin
+        else:
+            sin = .225 * (sin * sin - sin) + sin
+
+# compute cosine: sin(x + PI/2) = cos(x)
+
+    x += 1.57079632
+    if x > 3.14159265:
+        x -= 6.28318531
+    if x < 0:
+        cos = 1.27323954 * x + .405284735 * x * x
+        if cos < 0:
+            cos = .225 * (cos * -cos - cos) + cos
+        else:
+            cos = .225 * (cos * cos - cos) + cos
+    else:
+        cos = 1.27323954 * x - .405284735 * x * x
+        if cos < 0:
+            cos = .225 * (cos * -cos - cos) + cos
+        else:
+            cos = .225 * (cos * cos - cos) + cos
+
+    return (sin, cos)  # return tuple
+
 
 def radiusgen(perimeter, sides):
-#Assume for fair comparison that perimeter is equal
-#Calculates the radius of the polygon given the perimeter and number of sides
-	sincos = trig(3.14159265/sides)
-	radius = (perimeter/sides)/(2*sincos[0])
-	return radius
+
+# Assume for fair comparison that perimeter is equal
+# Calculates the radius of the polygon given the perimeter and number of sides
+
+    sincos = trig(3.14159265 / sides)
+    radius = perimeter / sides / (2 * sincos[0])
+    return radius
+
+    xarray.append(xarray[0])
+    yarray.append(yarray[0])
+    return [xarray, yarray]
 
 def bc_bot(mdb, vertices, thickness):
 #Given array of vertices, applies encastre BC to the bottom most point or points 
@@ -171,4 +247,4 @@ def loader(mdb, vertices, force=0, velocity=False, velx=0, vely=0, velr3=0, time
 		region=((v.findAt(((vertices[0][0], vertices[1][0], 0.0), ), ), ), )
 		mdb.models['standard'].ConcentratedForce(name='Force', 
     		createStepName='Apply load', 
-    		region=region, cf2=-force)		
+    		region=region, cf2=-force)	
