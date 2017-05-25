@@ -11,7 +11,7 @@ session.viewports['Viewport: 1'].makeCurrent()
 session.viewports['Viewport: 1'].maximize()
 session.journalOptions.setValues(replayGeometry=COORDINATE, 
     recoverGeometry=COORDINATE)
-import polygonmodule
+import polygonggmodule
 from caeModules import *
 from driverUtils import executeOnCaeStartup
 executeOnCaeStartup()
@@ -24,9 +24,9 @@ starty = 0
 radius = 0.67
 sides = 8
 thickness = 0.1
+print("Working as intended")
 
-
-vex = polygonmodule.vertices(startx, starty, radius, sides)
+vex = polygonggmodule.vertices(startx, starty, radius, sides)
 left = min(vex[0])
 bottom = min(vex[1])
 mdb.models.changeKey(fromName='Model-1', toName='standard')
@@ -37,9 +37,9 @@ mdb.models.changeKey(fromName='Model-1', toName='standard')
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.sketch(s,vex)
-vex2 = polygonmodule.vertices(startx, starty, radius-thickness, sides)
-polygonmodule.sketch(s,vex2) 
+polygonggmodule.sketch(s,vex)
+vex2 = polygonggmodule.vertices(startx, starty, radius-thickness, sides)
+polygonggmodule.sketch(s,vex2) 
 p = mdb.models['standard'].Part(name='Frame', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['Frame']
@@ -48,6 +48,7 @@ s.unsetPrimaryObject()
 p = mdb.models['standard'].parts['Frame']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 del mdb.models['standard'].sketches['__profile__']
+y
 
 ##
 ##  Sketch plane
@@ -55,7 +56,7 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,-bottom)
+polygonggmodule.line(s,left,-bottom*1.01)
 p = mdb.models['standard'].Part(name='plane', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['plane']
@@ -70,7 +71,7 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,bottom)
+polygonggmodule.line(s,left,bottom*1.01)
 p = mdb.models['standard'].Part(name='planetop', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['planetop']
@@ -202,14 +203,14 @@ a.Instance(name='planetop-1', part=p, dependent=ON)
 ##
 ##
 ##
-##  Apply concentrated force to top node
+##  Apply velocity to top plane
 ##
 #v = a.instances['Frame-1'].vertices
-polygonmodule.loader(mdb, vex, velocity = True, vely=-0.001, time = 50)
+polygonggmodule.loader(mdb, radius, vex, velocity = True, vely=-0.001, time = 50)
 ##
 ##  Apply encastre bc to bottom left corner
 ##
-polygonmodule.bc_bot(mdb, vex, thickness) 
+polygonggmodule.bc_bot(mdb, vex, thickness) 
 ##
 ##  Assign global seed
 ##
@@ -220,13 +221,22 @@ session.viewports['Viewport: 1'].partDisplay.setValues(sectionAssignments=OFF,
 session.viewports['Viewport: 1'].partDisplay.meshOptions.setValues(
     meshTechnique=ON)
 p = mdb.models['standard'].parts['Frame']
-p.seedPart(size=radius/10, deviationFactor=0.1, minSizeFactor=0.1)
+#p.seedPart(size=radius/10, deviationFactor=0.1, minSizeFactor=0.1)
+p.seedPart(size=radius, deviationFactor=0.1, minSizeFactor=0.5)
+
 p = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 p = mdb.models['standard'].parts['plane']
 p.deleteMesh()
 p = mdb.models['standard'].parts['plane']
-p.seedPart(size=radius, minSizeFactor=0.99)
+p.seedPart(size=radius*2, minSizeFactor=0.99)
+p = mdb.models['standard'].parts['planetop']
+session.viewports['Viewport: 1'].setValues(displayedObject=p)
+p = mdb.models['standard'].parts['planetop']
+p.deleteMesh()
+p = mdb.models['standard'].parts['planetop']
+p.seedPart(size=radius*2, minSizeFactor=0.99)
+
 ##
 ##  Assign element type
 ##
@@ -254,6 +264,10 @@ p.generateMesh()
 p = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 p = mdb.models['standard'].parts['plane']
+p.generateMesh()
+p = mdb.models['standard'].parts['planetop']
+session.viewports['Viewport: 1'].setValues(displayedObject=p)
+p = mdb.models['standard'].parts['planetop']
 p.generateMesh()
 mdb.models['standard'].historyOutputRequests['H-Output-1'].setValues(
         frequency=100)

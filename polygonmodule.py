@@ -158,6 +158,11 @@ def radiusgen(perimeter, sides):
     yarray.append(yarray[0])
     return [xarray, yarray]
 
+def sidelength(radius, sides):
+	sincos = trig(180/sides)
+	side = 2*radius*sincos[0]/sincos[1]
+	return side
+
 def bc_bot(mdb, vertices, thickness):
 #Given array of vertices, applies encastre BC to the bottom most point or points 
 	from abaqus import *
@@ -166,24 +171,22 @@ def bc_bot(mdb, vertices, thickness):
 	num_vert = len(vertices[0])
 	a = mdb.models['standard'].rootAssembly
 	v = a.instances['Frame-1'].vertices
-	if num_vert%2 != 0:	#Odd number of sides so two points on the bottom need to be fixed
-		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
-		mdb.models['standard'].EncastreBC(name='Fixedright', createStepName='Initial', region=region)
+#	if num_vert%2 != 0:	#Odd number of sides so two points on the bottom need to be fixed
+#		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
+#		mdb.models['standard'].EncastreBC(name='Fixedright', createStepName='Initial', region=region)
 		
-		region=(v.findAt(((vertices[0][num_vert/2-1], vertices[1][num_vert/2-1], 0.0), ), ), None, None, None)
-		mdb.models['standard'].EncastreBC(name='Fixedleft', createStepName='Initial', region=region)
-	else:
-		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
-		mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', region=region)
+#		region=(v.findAt(((vertices[0][num_vert/2-1], vertices[1][num_vert/2-1], 0.0), ), ), None, None, None)
+#		mdb.models['standard'].EncastreBC(name='Fixedleft', createStepName='Initial', region=region)
+#	else:
+#		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
+#		mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', region=region)
 	
-	bottom = min(vertices[1])
-	left = min(vertices[0])
+	bottom = min(vertices[0][1])
+	left = min(vertices[0][0])
 
 #Lock down the plane 
 	a = mdb.models['standard'].rootAssembly
-	s1 = a.instances['plane-1'].edges
-	side2Edges1 = s1.getByBoundingBox(3*left,1.01*bottom,0,-3*left,0.99*bottom,0)
-	region=a.Set(edges=side2Edges1, name='planar')
+	region = a.instances['plane-1'].sets['planar']
     	mdb.models['standard'].DisplacementBC(name='planelock', 
         createStepName='Apply load', region=region, u1=SET, u2=SET, ur3=SET, 
         amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
@@ -191,7 +194,7 @@ def bc_bot(mdb, vertices, thickness):
 
 #Constrain the edges
 	s1 = a.instances['Frame-1'].edges
-    	side2Edges1 = s1.getByBoundingSphere((0,0,0),-1*bottom)
+    	side2Edges1 = s1.getByBoundingSphere((0,0,0),-1*left)
     	region=a.Surface(side2Edges=side2Edges1, name='Surf-2')
 	mdb.models['standard'].ContactProperty('interior')
     	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
@@ -206,10 +209,10 @@ def bc_bot(mdb, vertices, thickness):
 #Contact between plane and polygon
 	a = mdb.models['standard'].rootAssembly
     	s1 = a.instances['plane-1'].edges
-    	side1Edges1 = s1.getByBoundingBox(3*left,1.02*bottom,0,-3*left,0.99*bottom,0)
-    	region1=a.Surface(side1Edges=side1Edges1, name='plane')
+    	side1Edges1 = s1.getByBoundingBox(3*left,1.03*bottom,0,-3*left,0.99*bottom,0)
+    	region1=a.Surface(side2Edges=side1Edges1, name='plane')
     	a = mdb.models['standard'].rootAssembly
-    	region2=a.instances['Frame-1'].sets['polygon']
+    	region2=a.instances['Frame-1'].sets['everything']
     	mdb.models['standard'].SurfaceToSurfaceContactStd(name='planeandframe', 
         createStepName='Apply load', master=region1, slave=region2, 
         sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
@@ -217,34 +220,127 @@ def bc_bot(mdb, vertices, thickness):
         adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
         clearanceRegion=None)
 
-def loader(mdb, vertices, force=0, velocity=False, velx=0, vely=0, velr3=0, time=2.0, maxinc=10000, initinc=0.01, minimum=2e-05, maximum=0.025):
+#Contact between planetop and polygon
+	a = mdb.models['standard'].rootAssembly
+    	s1 = a.instances['planetop-1'].edges
+    	side1Edges1 = s1.getByBoundingBox(3*left,-0.99*bottom,0,-3*left,-1.03*bottom,0)
+    	region1=a.Surface(side1Edges=side1Edges1, name='planetop')
+
+    	a = mdb.models['standard'].rootAssembly
+    	region2=a.instances['Frame-1'].sets['everything']
+    	mdb.models['standard'].SurfaceToSurfaceContactStd(name='planetopandframe', 
+        createStepName='Apply load', master=region1, slave=region2, 
+        sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
+        interactionProperty='interior', surfaceSmoothing=NONE, 
+        adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
+        clearanceRegion=None)
+#Generate sets for top and bottom edge
+	a = mdb.models['standard'].rootAssembly
+    	e1 = a.instances['Frame-1'].edges
+        edges1 = e1.getByBoundingBox(3*left, -0.99*bottom, 0, -3*left, -1.02*bottom,0)
+	a.Set(edges=edges1, name='topedge')
+
+	a = mdb.models['standard'].rootAssembly
+    	e1 = a.instances['Frame-1'].edges
+        edges1 = e1.getByBoundingBox(3*left, 1.02*bottom, 0, -3*left, 0.99*bottom,0)
+	a.Set(edges=edges1, name='botedge')
+
+#Generate overclosure for top and bottom edge 
+	regionDef=mdb.models['standard'].rootAssembly.sets['topedge']
+        mdb.models['standard'].interactions['planetopandframe'].setValues(
+        initialClearance=OMIT, adjustMethod=SET, sliding=FINITE, 
+        enforcement=NODE_TO_SURFACE, thickness=OFF, 
+        supplementaryContact=SELECTIVE, smooth=0.2, tied=ON, 
+        adjustSet=regionDef, bondingSet=None)
+        regionDef=mdb.models['standard'].rootAssembly.sets['botedge']
+        mdb.models['standard'].interactions['planeandframe'].setValues(
+        initialClearance=OMIT, adjustMethod=SET, sliding=FINITE, 
+        enforcement=NODE_TO_SURFACE, thickness=OFF, 
+        supplementaryContact=SELECTIVE, smooth=0.2, tied=ON, 
+        adjustSet=regionDef, bondingSet=None)
+
+#Generate sets for left and right edge 
+	a = mdb.models['standard'].rootAssembly
+    	e1 = a.instances['Frame-1'].edges
+        edges1 = e1.getByBoundingBox(1.02*left, 3*bottom, 0, 0.98*left, -3*bottom,0)
+	a.Set(edges=edges1, name='leftedge')
+
+    	e1 = a.instances['Frame-1'].edges
+        edges1 = e1.getByBoundingBox(-0.98*left, 3*bottom, 0, -1.02*left, -3*bottom,0)
+	a.Set(edges=edges1, name='rightedge')
+
+#Mirror symmetry along x-direction
+	region = a.sets['leftedge']
+    	mdb.models['standard'].XsymmBC(name='leftedge', createStepName='Apply load', 
+        region=region, localCsys=None)
+
+	region=a.sets['rightedge']
+	mdb.models['standard'].XsymmBC(name='rightedge', createStepName='Apply load', 
+        region=region, localCsys=None)
+#Overclosure initial protection
+	mdb.models['standard'].StdInitialization(name='CInit-1')
+
+
+	
+ 	 
+  
+def loader(mdb, vex, force=0, velocity=False, velx=0, vely=0, velr3=0, time=2.0, maxinc=10000, initinc=0.01, minimum=2e-05, maximum=0.0125):
 #Must give at least one argument for this to work 
 	from abaqus import *
-	from abaqusConstants import *
+	from abaqusConstants import *	
 	a = mdb.models['standard'].rootAssembly
-	v = a.instances['Frame-1'].vertices
+#	v = a.instances['Frame-1'].vertices
 
+	left = min(vex[0][0])
+	bottom = min(vex[0][1])
 	if velocity:
 		#Create a step with increments 
-		mdb.models['standard'].StaticStep(name='Apply load', previous='Initial', description='Description', timePeriod=time, maxNumInc=maxinc, 
-        	initialInc=initinc, minInc=minimum, maxInc=maximum)
-    		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-		
-		verts1 = v.findAt(((vertices[0][0], vertices[1][0], 0.0), ))
-    		region = a.Set(vertices=verts1, name='topnode')
-    		mdb.models['standard'].VelocityBC(name='velocity', createStepName='Apply load', 
+		mdb.models['standard'].StaticStep(name='Apply load', previous='Initial', description='Description', timePeriod=time, maxNumInc=maxinc, initialInc=initinc, minInc=minimum, maxInc=maximum)
+		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
+		region = a.instances['planetop-1'].sets['planar2']
+       		mdb.models['standard'].VelocityBC(name='velocity', createStepName='Apply load', 
         	region=region, v1=velx, v2=vely, vr3=velr3, amplitude=UNSET, 
         	localCsys=None, distributionType=UNIFORM, fieldName='')
 
-	if force != 0: 
-		mdb.models['standard'].StaticLinearPerturbationStep(name='Apply load', 
-    		previous='Initial', description='10kN central load', 
-    		matrixSolver=SOLVER_DEFAULT)
-		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-		mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
-    		variables=PRESELECT, region=MODEL)
-		
-		region=((v.findAt(((vertices[0][0], vertices[1][0], 0.0), ), ), ), )
-		mdb.models['standard'].ConcentratedForce(name='Force', 
-    		createStepName='Apply load', 
-    		region=region, cf2=-force)	
+#	if force != 0: 
+#		mdb.models['standard'].StaticLinearPerturbationStep(name='Apply load', 
+#    		previous='Initial', description='10kN central load', 
+#    		matrixSolver=SOLVER_DEFAULT)
+#		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
+#		mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
+#   		variables=PRESELECT, region=MODEL)
+#		
+#		region=((v.findAt(((vertices[0][0], vertices[1][0], 0.0), ), ), ), )
+#		mdb.models['standard'].ConcentratedForce(name='Force', 
+ #   		createStepName='Apply load', 
+  #  		region=region, cf2=-force)	
+def radiuschecker(startx, maxrad, x, y):
+#Assumed that starty = zero 
+#Returns true if x,y is more than maxrad away from (startx,0) 
+	return maxrad<((x-startx)**2+y**2)**0.5
+def edgeselector(mdb, vex, radius):
+#Generates the interacting sets for the contact between the two polygons
+#Then creates the contact interaction between the two 
+	a = mdb.models['standard'].rootAssembly
+	s1 = a.instances['Frame-1'].edges
+	startx = min(vex[0][0])
+	array = [] #temporary
+	for i in range(0, len(vex[0][0]-1)):
+		x = vex[0][0][i]
+		y = vex[0][1][i]
+		if radiuschecker(startx, radius, x,y):
+			coord = s1.getClosest(coordinates=((x,y,0),))
+			array += coord[0][1] #change this to the findat function when possible 
+			#Name this set left or right or whatever
+	
+	array = []
+	for i in range(0, len(vex[0][0]-1)):
+		x = vex[1][0][i]
+		y = vex[1][1][i]
+		if radiuschecker(-startx, radius, x,y):	#-startx for centre point on the right region 
+			coord = s1.getClosest(coordinates=((x,y,0),))
+			array += coord[0][1] #change this to the findat function when possible 
+			#Name this set left or right or whatever
+
+
+
