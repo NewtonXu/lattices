@@ -13,6 +13,32 @@ def sketch(s, array):
     for i in range(0, len(array[0]) - 1):
         s.Line(point1=(array[0][i], array[1][i]), point2=(array[0][i
                + 1], array[1][i + 1]))
+def advancedarrayspolygon(inradius, thickness, sides,distance):
+    innervertices = vertices(0,0, inradius, sides)
+    outervertices = vertices(0,0, inradius+thickness, sides)
+    
+    innervleft = [innervertices[0][0:len(innervertices[0])//2],innervertices[1][0:len(innervertices[0])//2]]
+    innervright = [innervertices[0][len(innervertices[0])//2:len(innervertices[0])],innervertices[1][len(innervertices[0])//2:len(innervertices[0])]]
+    outervleft = [outervertices[0][0:len(outervertices[0])//2],outervertices[1][0:len(outervertices[0])//2]]
+    outervright = [outervertices[0][len(outervertices[0])//2:len(outervertices[0])],outervertices[1][len(outervertices[0])//2:len(outervertices[0])]]
+    
+    topnodeouter = max(outervertices[1])
+    topnodeinner = max(innervertices[1])
+    leftnodeouter = max(outervertices[1])
+    
+    translatedleft1 = list(map(lambda x: x-leftnodeouter-distance, innervleft[0]))
+    translatedright1 = list(map(lambda x: x+leftnodeouter+distance, innervright[0]))
+    innerv = [translatedleft1, innervleft[1]]
+    innerv[0].extend(translatedright1)
+    innerv[1].extend(innervright[1])
+    
+	
+    translatedleft2 = list(map(lambda x: x-leftnodeouter-distance, outervleft[0]))
+    translatedright2 = list(map(lambda x: x+leftnodeouter+distance, outervright[0]))
+    outerv = [translatedleft2, outervleft[1]]
+    outerv[0].extend(translatedright2)
+    outerv[1].extend(outervright[1])
+    return [innerv,outerv]
 def advancedpolygon(
     inradius,
     thickness,
@@ -191,8 +217,7 @@ def bc_bot(mdb, vertices, thickness):
         createStepName='Apply load', region=region, u1=SET, u2=SET, ur3=SET, 
         amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
         localCsys=None)
-
-#Constrain the edges
+#Create interaction property
 	s1 = a.instances['Frame-1'].edges
     	side2Edges1 = s1.getByBoundingSphere((0,0,0),-1*left)
     	region=a.Surface(side2Edges=side2Edges1, name='Surf-2')
@@ -200,12 +225,6 @@ def bc_bot(mdb, vertices, thickness):
     	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
         pressureOverclosure=HARD, allowSeparation=ON, 
         constraintEnforcementMethod=DEFAULT)
-
-    	mdb.models['standard'].SelfContactStd(name='interiorcontact', 
-        createStepName='Apply load', surface=region, 
-        interactionProperty='interior', enforcement=NODE_TO_SURFACE, 
-        thickness=OFF, smooth=0.2) 
-
 #Contact between plane and polygon
 	a = mdb.models['standard'].rootAssembly
     	s1 = a.instances['plane-1'].edges
@@ -321,26 +340,110 @@ def radiuschecker(startx, maxrad, x, y):
 def edgeselector(mdb, vex, radius):
 #Generates the interacting sets for the contact between the two polygons
 #Then creates the contact interaction between the two 
+
+	from abaqus import *
+	from abaqusConstants import *
 	a = mdb.models['standard'].rootAssembly
 	s1 = a.instances['Frame-1'].edges
 	startx = min(vex[0][0])
-	array = [] #temporary
-	for i in range(0, len(vex[0][0]-1)):
+	first = False 
+	alter = False 
+	for i in range(0, len(vex[0][0])-1):
 		x = vex[0][0][i]
 		y = vex[0][1][i]
+		coord = s1.getClosest(coordinates=((x,y,0),))
 		if radiuschecker(startx, radius, x,y):
-			coord = s1.getClosest(coordinates=((x,y,0),))
-			array += coord[0][1] #change this to the findat function when possible 
-			#Name this set left or right or whatever
+			
+			if first==True:
+				side1Edges1 += s1.findAt((coord[0][1],))
+			else:	#Initializing side1Edges1 for iteration
+				side1Edges1 = s1.findAt((coord[0][1],))
+				first = True
+		else:
+			if alter==True:
+				side1Edges2 += s1.findAt((coord[0][1],))
+			else:	#Initializing side1Edges1 for iteration
+				side1Edges2 = s1.findAt((coord[0][1],))
+				alter = True
+
+	region1=a.Surface(side1Edges=side1Edges1, name='m_Surf-4')
+	regionalt1 = a.Surface(side1Edges=side1Edges2, name='innerl')
 	
-	array = []
-	for i in range(0, len(vex[0][0]-1)):
+	first = False 
+	alter = False
+	for i in range(0, len(vex[0][0])-1):
 		x = vex[1][0][i]
 		y = vex[1][1][i]
-		if radiuschecker(-startx, radius, x,y):	#-startx for centre point on the right region 
-			coord = s1.getClosest(coordinates=((x,y,0),))
-			array += coord[0][1] #change this to the findat function when possible 
-			#Name this set left or right or whatever
+		coord = s1.getClosest(coordinates=((x,y,0),))
+		if radiuschecker(-startx, radius, x,y):
+			
+			if first==True:
+				side1Edges1 += s1.findAt((coord[0][1],))
+			else: 
+				side1Edges1 = s1.findAt((coord[0][1],))
+				first=True
+		else:
+			if alter==True:
+				side1Edges2 += s1.findAt((coord[0][1],))
+			else:	#Initializing side1Edges1 for iteration
+				side1Edges2 = s1.findAt((coord[0][1],))
+				alter = True
+
+	region2=a.Set(edges=side1Edges1, name='s_Set-5')
+	regionalt2 = a.Surface(side1Edges=side1Edges2, name='innerr')
+	mdb.models['standard'].SurfaceToSurfaceContactStd(name='Int-3', 
+        	createStepName='Apply load', master=region1, slave=region2, 
+        	sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
+        	interactionProperty='interior', surfaceSmoothing=NONE, 
+        	adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
+        	clearanceRegion=None)
+	
+	mdb.models['standard'].SelfContactStd(name='selfl', 
+        	createStepName='Apply load', surface=regionalt1, 
+        	interactionProperty='interior', thickness=ON)
+    	mdb.models['standard'].interactions['selfl'].setValues(
+        	enforcement=NODE_TO_SURFACE, thickness=OFF, smooth=0.2, 
+        	supplementaryContact=SELECTIVE)
+
+	mdb.models['standard'].SelfContactStd(name='selfr', 
+        	createStepName='Apply load', surface=regionalt2, 
+        	interactionProperty='interior', thickness=ON)
+    	mdb.models['standard'].interactions['selfr'].setValues(
+        	enforcement=NODE_TO_SURFACE, thickness=OFF, smooth=0.2, 
+        	supplementaryContact=SELECTIVE)
+
+def partition(mdb, innerv, outerv):
+#Input: model database, array of vertices for the inner polygon, array of vertices for the outer polygon
+#Generates partition at each kink of polygon 
+    from abaqus import *
+    from abaqusConstants import *
+
+    left = min(outerv[0])
+    bottom = min(outerv[1])
+
+    p = mdb.models['standard'].parts['Frame']
+    f = p.faces
+    pickedRegions = f.getByBoundingBox(1.02*left, 1.02*bottom,0,-1.02*left,-1.02*bottom,0)
+    p.deleteMesh(regions=pickedRegions)
+    p = mdb.models['standard'].parts['Frame']
+    f, e, d = p.faces, p.edges, p.datums
+    t = p.MakeSketchTransform(sketchPlane=f[0], sketchPlaneSide=SIDE1, origin=(
+        0, 0.0, 0.0))
+    s = mdb.models['standard'].ConstrainedSketch(name='__profile__', 
+        sheetSize=4.16, gridSpacing=0.1, transform=t)
+    g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
+    s.setPrimaryObject(option=SUPERIMPOSE)
+    p = mdb.models['standard'].parts['Frame']
+    p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
+    for i in range(0, len(outerv[0])-1):
+    	s.Line(point1=(innerv[0][i],innerv[1][i]), point2=(outerv[0][i],outerv[1][i]))
+    p = mdb.models['standard'].parts['Frame']
+    f = p.faces
+    pickedFaces = f.getByBoundingBox(3*left, 3*bottom,0,-3*left,-3*bottom,0)
+    e1, d2 = p.edges, p.datums
+    p.PartitionFaceBySketch(faces=pickedFaces, sketch=s)
+    s.unsetPrimaryObject()
+    del mdb.models['standard'].sketches['__profile__']
 
 
-
+	

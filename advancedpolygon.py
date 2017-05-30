@@ -9,8 +9,7 @@ from abaqus import *
 from abaqusConstants import *
 session.viewports['Viewport: 1'].makeCurrent()
 session.viewports['Viewport: 1'].maximize()
-session.journalOptions.setValues(replayGeometry=COORDINATE, 
-    recoverGeometry=COORDINATE)
+session.journalOptions.setValues(replayGeometry=COORDINATE, recoverGeometry=COORDINATE)
 import polygonmodule
 from caeModules import *
 from driverUtils import executeOnCaeStartup
@@ -24,7 +23,7 @@ starty = 0
 radius = 0.5
 sides = 10
 thickness = 0.25
-distance = 0.8
+distance = 0.2
 sidelen = polygonmodule.sidelength(radius, sides)
 seeder = sidelen/100
 print("Working as intended")
@@ -58,7 +57,7 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,-bottom*1.02)
+polygonmodule.line(s,left,-bottom)
 p = mdb.models['standard'].Part(name='plane', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['plane']
@@ -73,7 +72,7 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,bottom*1.02)
+polygonmodule.line(s,left,bottom)
 p = mdb.models['standard'].Part(name='planetop', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['planetop']
@@ -204,17 +203,22 @@ p = mdb.models['standard'].parts['planetop']
 a.Instance(name='planetop-1', part=p, dependent=ON)
 #p1 = a.instances['Frame-1']
 #p1.translate(vector=(-0.035794, 0.331227, 0.0))
-##
-##
+
+
 ##
 ##  Apply velocity to top plane
 ##
 #v = a.instances['Frame-1'].vertices
 polygonmodule.loader(mdb, vex, velocity = True, vely=-1, time = 50)
 ##
-##  Apply encastre bc to bottom left corner
+##  Apply bc and initiate interactions between plane and polygon
 ##
 polygonmodule.bc_bot(mdb, vex, thickness) 
+##
+## Generate polygon to polygon contact interaction
+##
+polygonmodule.edgeselector(mdb,vex,radius+thickness*0.95)
+
 ##
 ##  Assign global seed
 ##
@@ -257,6 +261,12 @@ p.seedPart(size=seeder/2, minSizeFactor=0.99)
 #edges = e.getByBoundingBox(-3*left, 1.01*bottom, 0, 3*left, 0.99*bottom)
 #pickedRegions =(edges, )
 #p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
+##
+##  Generate partition
+##
+arrays = polygonmodule.advancedarrayspolygon(radius, thickness,sides, distance)
+
+polygonmodule.partition(mdb, arrays[0],arrays[1])
 ##
 ##  Generate mesh
 ##
