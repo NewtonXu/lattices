@@ -11,6 +11,8 @@ session.viewports['Viewport: 1'].makeCurrent()
 session.viewports['Viewport: 1'].maximize()
 session.journalOptions.setValues(replayGeometry=COORDINATE, recoverGeometry=COORDINATE)
 import polygonmodule
+import os
+os.chdir(r"/mnt/compute-0-4/newton")
 from caeModules import *
 from driverUtils import executeOnCaeStartup
 executeOnCaeStartup()
@@ -21,11 +23,12 @@ Mdb()
 startx = 0
 starty = 0
 radius = 0.5
-sides = 10
-thickness = 0.25
-distance = 0.2
+sides = 6
+thickness = 0.1
+planethick = thickness/10
+distance = 0.085
 sidelen = polygonmodule.sidelength(radius, sides)
-seeder = sidelen/100
+seeder = sidelen/10
 print("Working as intended")
 #vex = polygonmodule.vertices(startx, starty, radius, sides)
 vex = polygonmodule.advancedpolygon(radius, thickness, sides, distance)
@@ -57,11 +60,11 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,-bottom)
+polygonmodule.rectangle(s,left,bottom, -thickness)
 p = mdb.models['standard'].Part(name='plane', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['plane']
-p.BaseWire(sketch=s)
+p.BaseShell(sketch=s)
 s.unsetPrimaryObject()
 p = mdb.models['standard'].parts['plane']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
@@ -72,11 +75,11 @@ del mdb.models['standard'].sketches['__profile__']
 s = mdb.models['standard'].ConstrainedSketch(name='__profile__', sheetSize=4.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
-polygonmodule.line(s,left,bottom)
+polygonmodule.rectangle(s,left,-bottom, thickness)
 p = mdb.models['standard'].Part(name='planetop', dimensionality=TWO_D_PLANAR, 
     type=DEFORMABLE_BODY)
 p = mdb.models['standard'].parts['planetop']
-p.BaseWire(sketch=s)
+p.BaseShell(sketch=s)
 s.unsetPrimaryObject()
 p = mdb.models['standard'].parts['planetop']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
@@ -87,63 +90,72 @@ del mdb.models['standard'].sketches['__profile__']
 ##  Create material 'Steel'
 ##
 mdb.models['standard'].Material('Steel')
-mdb.models['standard'].materials['Steel'].Elastic(table=((200000, 0.3), ))
+mdb.models['standard'].materials['Steel'].Elastic(table=((206010.0, 0.3), ))
+mdb.models['standard'].materials['Steel'].Plastic(table=((260.0, 
+        0.0), (262.01, 0.02), (282.695, 0.04), (317.17, 0.06), (330.96, 0.08), 
+        (344.75, 0.1), (344.75, 0.12), (330.96, 0.14), (324.065, 0.16), (
+        303.38, 0.18), (289.59, 0.2), (275.8, 0.22), (248.22, 0.24)))
+mdb.models['standard'].materials['Steel'].plastic.RateDependent(type=JOHNSON_COOK, table=((0.011, 25.0), ))
+mdb.models['standard'].materials['Steel'].Density(table=((8e-09, ), ))
 
 ##
 ##  Create material 'Rigidbody'
 ##
 mdb.models['standard'].Material('Rigidbody')
 mdb.models['standard'].materials['Rigidbody'].Elastic(table=((20000000,),))
-
+mdb.models['standard'].materials['Rigidbody'].Density(table=((7.85e-09, ), ))
 ##
 ##  Create beam sections
 ##
-mdb.models['standard'].BoxProfile(name='Profile-1', b=1.0, a=1.0, 
-        uniformThickness=ON, t1=0.25)
-mdb.models['standard'].BeamSection(name='plane', 
-        integration=DURING_ANALYSIS, poissonRatio=0.0, profile='Profile-1', 
-        material='Rigidbody', temperatureVar=LINEAR, 
-        consistentMassMatrix=False)
-mdb.models['standard'].BeamSection(name='frame', integration=DURING_ANALYSIS, 
-        poissonRatio=0.3, profile='Profile-1', material='Steel', 
-        temperatureVar=LINEAR, consistentMassMatrix=False)
+##mdb.models['standard'].BoxProfile(name='Profile-1', b=1.0, a=1.0, 
+##        uniformThickness=ON, t1=0.25)
+##mdb.models['standard'].BeamSection(name='plane', 
+##        integration=DURING_ANALYSIS, poissonRatio=0.0, profile='Profile-1', 
+##        material='Rigidbody', temperatureVar=LINEAR, 
+##        consistentMassMatrix=False)
+
+##
+##Create homogenous solids
+##
+mdb.models['standard'].HomogeneousSolidSection(name='frame', 
+        material='Steel', thickness=None)
+mdb.models['standard'].HomogeneousSolidSection(name='plane', 
+        material='Steel', thickness=None)
+
 
 ##
 ##  Assign FRAME AND PLANE section
 ##
 p = mdb.models['standard'].parts['Frame']
-e = p.edges
+e = p.faces	#e=p.edges 
 edges = e.getByBoundingBox(3*left, 3*bottom, 0, -3*left, -3*bottom,0)
-region = p.Set(edges=edges, name='polygon')
+region = p.Set(faces=edges, name='polygon')
 p = mdb.models['standard'].parts['Frame']
 p.SectionAssignment(region=region, sectionName='frame', offset=0.0, 
         offsetType=MIDDLE_SURFACE, offsetField='', 
         thicknessAssignment=FROM_SECTION)
 p1 = mdb.models['standard'].parts['plane']
-session.viewports['Viewport: 1'].setValues(displayedObject=p1)
+#session.viewports['Viewport: 1'].setValues(displayedObject=p1)
 p = mdb.models['standard'].parts['plane']
-e = p.edges
+e = p.faces #e=p.edges
 edges = e.getByBoundingBox(3.1*left, 3*bottom,0,-3.1*left,0,0)
-region = p.Set(edges=edges, name='planar')
+region = p.Set(faces=edges, name='planar')
 p = mdb.models['standard'].parts['plane']
 p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
         offsetType=MIDDLE_SURFACE, offsetField='', 
         thicknessAssignment=FROM_SECTION)
 
 p1 = mdb.models['standard'].parts['planetop']
-session.viewports['Viewport: 1'].setValues(displayedObject=p1)
+#session.viewports['Viewport: 1'].setValues(displayedObject=p1)
 p = mdb.models['standard'].parts['planetop']
-e = p.edges
+e = p.faces #e=p.edges
 edges = e.getByBoundingBox(10*left, 0,0,-10*left,-3*bottom,0)
-region = p.Set(edges=edges, name='planar2')
+region = p.Set(faces=edges, name='planar2')
 p = mdb.models['standard'].parts['planetop']
 p.SectionAssignment(region=region, sectionName='plane', offset=0.0, 
         offsetType=MIDDLE_SURFACE, offsetField='', 
         thicknessAssignment=FROM_SECTION)
 
-
-
-#This section still uses findAt, switch to bounding box
 p = mdb.models['standard'].parts['Frame']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 mdb.models['standard'].HomogeneousSolidSection(name='Section-3', 
@@ -166,30 +178,30 @@ a.DatumCsysByDefault(CARTESIAN)
 ##
 ##  Set beam orientation
 ##
-session.viewports['Viewport: 1'].partDisplay.setValues(sectionAssignments=ON, 
-        engineeringFeatures=ON)
-session.viewports['Viewport: 1'].partDisplay.geometryOptions.setValues(
-        referenceRepresentation=OFF)
-p = mdb.models['standard'].parts['plane']
-session.viewports['Viewport: 1'].setValues(displayedObject=p)
-p = mdb.models['standard'].parts['plane']
-region=p.sets['planar']
-p = mdb.models['standard'].parts['plane']
-p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
+#session.viewports['Viewport: 1'].partDisplay.setValues(sectionAssignments=ON, 
+#        engineeringFeatures=ON)
+#session.viewports['Viewport: 1'].partDisplay.geometryOptions.setValues(
+#        referenceRepresentation=OFF)
+#p = mdb.models['standard'].parts['plane']
+#session.viewports['Viewport: 1'].setValues(displayedObject=p)
+#p = mdb.models['standard'].parts['plane']
+#region=p.sets['planar']
+#p = mdb.models['standard'].parts['plane']
+#p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
 
-p = mdb.models['standard'].parts['planetop']
-session.viewports['Viewport: 1'].setValues(displayedObject=p)
-p = mdb.models['standard'].parts['planetop']
-region=p.sets['planar2']
-p = mdb.models['standard'].parts['planetop']
-p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
+#p = mdb.models['standard'].parts['planetop']
+#session.viewports['Viewport: 1'].setValues(displayedObject=p)
+#p = mdb.models['standard'].parts['planetop']
+#region=p.sets['planar2']
+#p = mdb.models['standard'].parts['planetop']
+#p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
 
-p = mdb.models['standard'].parts['Frame']
-session.viewports['Viewport: 1'].setValues(displayedObject=p)
-p = mdb.models['standard'].parts['Frame']
-region=p.sets['polygon']
-p = mdb.models['standard'].parts['Frame']
-p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
+#p = mdb.models['standard'].parts['Frame']
+#session.viewports['Viewport: 1'].setValues(displayedObject=p)
+#p = mdb.models['standard'].parts['Frame']
+#region=p.sets['polygon']
+#p = mdb.models['standard'].parts['Frame']
+#p.assignBeamSectionOrientation(region=region, method=N1_COSINES, n1=(0.0, 0.0,-1.0))
 
 ##
 ##  Instance the frame and plane
@@ -204,20 +216,27 @@ a.Instance(name='planetop-1', part=p, dependent=ON)
 #p1 = a.instances['Frame-1']
 #p1.translate(vector=(-0.035794, 0.331227, 0.0))
 
+##
+##   Create the step 
+##
+mdb.models['standard'].ExplicitDynamicsStep(name='Apply load', previous='Initial', 
+        timeIncrementationMethod=FIXED_USER_DEFINED_INC, userDefinedInc=0.000000005)
 
 ##
 ##  Apply velocity to top plane
 ##
 #v = a.instances['Frame-1'].vertices
-polygonmodule.loader(mdb, vex, velocity = True, vely=-1, time = 50)
+polygonmodule.loader(mdb, radius, thickness, 3)
+
 ##
-##  Apply bc and initiate interactions between plane and polygon
+##  Apply bc and initiate interactions between planes and polygon
 ##
-polygonmodule.bc_bot(mdb, vex, thickness) 
+polygonmodule.bc_bot(mdb, vex, thickness)
+ 
 ##
 ## Generate polygon to polygon contact interaction
 ##
-polygonmodule.edgeselector(mdb,vex,radius+thickness*0.95)
+polygonmodule.edgeselector(mdb,vex,radius, thickness)
 
 ##
 ##  Assign global seed
@@ -244,23 +263,7 @@ p.deleteMesh()
 p = mdb.models['standard'].parts['planetop']
 p.seedPart(size=seeder/2, minSizeFactor=0.99)
 
-##
-##  Assign element type
-##
-#elemType1 = mesh.ElemType(elemCode=B21, elemLibrary=STANDARD)
-#p = mdb.models['standard'].parts['Frame']
-#e = p.edges
-#edges = e.getByBoundingBox(-3*left, 1.01*bottom,0,3*left,-1.01*bottom)
-#pickedRegions =(edges, )
-#p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
-#p = mdb.models['standard'].parts['plane']
-#session.viewports['Viewport: 1'].setValues(displayedObject=p)
-#elemType1 = mesh.ElemType(elemCode=B21, elemLibrary=STANDARD)
-#p = mdb.models['standard'].parts['plane']
-#e = p.edges
-#edges = e.getByBoundingBox(-3*left, 1.01*bottom, 0, 3*left, 0.99*bottom)
-#pickedRegions =(edges, )
-#p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
+
 ##
 ##  Generate partition
 ##
@@ -299,10 +302,10 @@ session.viewports['Viewport: 1'].view.fitView()
 ##
 ##  Save model database
 ##
-mdb.saveAs('Frame')
+#mdb.saveAs('Frame')
 
 a = mdb.models['standard'].rootAssembly
 a.regenerate()
 
-mdb.save()
+#mdb.save()
 

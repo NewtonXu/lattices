@@ -2,6 +2,8 @@ def line(s, left, top):
 
     s.Line(point1=(-2 * left, -top), point2=(2 * left, -top))
 
+def rectangle(s, left, top, thickness):
+    s.rectangle(point1=(left,top), point2=(-left,top+thickness))
 
 
 def sketch(s, array):
@@ -124,7 +126,6 @@ def vertices(
 
 
 def trig(x):
-
 # Returns sin and cos of angle x (rad)
 # http://lab.polygonal.de/2007/07/18/fast-and-accurate-sinecosine-approximation/
 # Low degree of precision required because CAE should automatically get correct angle once sides
@@ -172,7 +173,6 @@ def trig(x):
 
 
 def radiusgen(perimeter, sides):
-
 # Assume for fair comparison that perimeter is equal
 # Calculates the radius of the polygon given the perimeter and number of sides
 
@@ -185,174 +185,163 @@ def radiusgen(perimeter, sides):
     return [xarray, yarray]
 
 def sidelength(radius, sides):
-	sincos = trig(180/sides)
-	side = 2*radius*sincos[0]/sincos[1]
+#Input: Radius of polygon and number of sides
+#Calculates the side length of a "sides"-sided polygon of radius 
+    	import math 
+    	side = 2*radius*math.sin(180/sides)
 	return side
 
 def bc_bot(mdb, vertices, thickness):
-#Given array of vertices, applies encastre BC to the bottom most point or points 
+#Input: Model database, array of vertices of L/R polygon, thickness of polygon
+#Applies boundary conditions and rigid body constraints
 	from abaqus import *
 	from abaqusConstants import *
+	import regionToolset
+
 	output = []
 	num_vert = len(vertices[0])
 	a = mdb.models['standard'].rootAssembly
-	v = a.instances['Frame-1'].vertices
-#	if num_vert%2 != 0:	#Odd number of sides so two points on the bottom need to be fixed
-#		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
-#		mdb.models['standard'].EncastreBC(name='Fixedright', createStepName='Initial', region=region)
-		
-#		region=(v.findAt(((vertices[0][num_vert/2-1], vertices[1][num_vert/2-1], 0.0), ), ), None, None, None)
-#		mdb.models['standard'].EncastreBC(name='Fixedleft', createStepName='Initial', region=region)
-#	else:
-#		region=(v.findAt(((vertices[0][num_vert/2], vertices[1][num_vert/2], 0.0), ), ), None, None, None)
-#		mdb.models['standard'].EncastreBC(name='Fixedbottom', createStepName='Initial', region=region)
-	
+
 	bottom = min(vertices[0][1])
 	left = min(vertices[0][0])
 
-#Lock down the plane 
-	a = mdb.models['standard'].rootAssembly
-	region = a.instances['plane-1'].sets['planar']
-    	mdb.models['standard'].DisplacementBC(name='planelock', 
-        createStepName='Apply load', region=region, u1=SET, u2=SET, ur3=SET, 
-        amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
-        localCsys=None)
-#Create interaction property
-	s1 = a.instances['Frame-1'].edges
-    	side2Edges1 = s1.getByBoundingSphere((0,0,0),-1*left)
-    	region=a.Surface(side2Edges=side2Edges1, name='Surf-2')
-	mdb.models['standard'].ContactProperty('interior')
-    	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
-        pressureOverclosure=HARD, allowSeparation=ON, 
-        constraintEnforcementMethod=DEFAULT)
-#Contact between plane and polygon
-	a = mdb.models['standard'].rootAssembly
-    	s1 = a.instances['plane-1'].edges
-    	side1Edges1 = s1.getByBoundingBox(3*left,1.03*bottom,0,-3*left,0.99*bottom,0)
-    	region1=a.Surface(side2Edges=side1Edges1, name='plane')
-    	a = mdb.models['standard'].rootAssembly
-    	region2=a.instances['Frame-1'].sets['everything']
-    	mdb.models['standard'].SurfaceToSurfaceContactStd(name='planeandframe', 
-        createStepName='Apply load', master=region1, slave=region2, 
-        sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
-        interactionProperty='interior', surfaceSmoothing=NONE, 
-        adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
-        clearanceRegion=None)
+	#Rigid body definition for top plane
+        #a = mdb.models['standard'].rootAssembly
+        #e1 = a.instances['planetop-1'].edges
+	#coord = e1.getClosest(coordinates=((0,-bottom+thickness,0),))
 
-#Contact between planetop and polygon
-	a = mdb.models['standard'].rootAssembly
-    	s1 = a.instances['planetop-1'].edges
-    	side1Edges1 = s1.getByBoundingBox(3*left,-0.99*bottom,0,-3*left,-1.03*bottom,0)
-    	region1=a.Surface(side1Edges=side1Edges1, name='planetop')
-
-    	a = mdb.models['standard'].rootAssembly
-    	region2=a.instances['Frame-1'].sets['everything']
-    	mdb.models['standard'].SurfaceToSurfaceContactStd(name='planetopandframe', 
-        createStepName='Apply load', master=region1, slave=region2, 
-        sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
-        interactionProperty='interior', surfaceSmoothing=NONE, 
-        adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
-        clearanceRegion=None)
-#Generate sets for top and bottom edge
-	a = mdb.models['standard'].rootAssembly
-    	e1 = a.instances['Frame-1'].edges
-        edges1 = e1.getByBoundingBox(3*left, -0.99*bottom, 0, -3*left, -1.02*bottom,0)
-	a.Set(edges=edges1, name='topedge')
-
-	a = mdb.models['standard'].rootAssembly
-    	e1 = a.instances['Frame-1'].edges
-        edges1 = e1.getByBoundingBox(3*left, 1.02*bottom, 0, -3*left, 0.99*bottom,0)
-	a.Set(edges=edges1, name='botedge')
-
-#Generate overclosure for top and bottom edge 
-	regionDef=mdb.models['standard'].rootAssembly.sets['topedge']
-        mdb.models['standard'].interactions['planetopandframe'].setValues(
-        initialClearance=OMIT, adjustMethod=SET, sliding=FINITE, 
-        enforcement=NODE_TO_SURFACE, thickness=OFF, 
-        supplementaryContact=SELECTIVE, smooth=0.2, tied=ON, 
-        adjustSet=regionDef, bondingSet=None)
-        regionDef=mdb.models['standard'].rootAssembly.sets['botedge']
-        mdb.models['standard'].interactions['planeandframe'].setValues(
-        initialClearance=OMIT, adjustMethod=SET, sliding=FINITE, 
-        enforcement=NODE_TO_SURFACE, thickness=OFF, 
-        supplementaryContact=SELECTIVE, smooth=0.2, tied=ON, 
-        adjustSet=regionDef, bondingSet=None)
-
-#Generate sets for left and right edge 
-	a = mdb.models['standard'].rootAssembly
-    	e1 = a.instances['Frame-1'].edges
-        edges1 = e1.getByBoundingBox(1.02*left, 3*bottom, 0, 0.98*left, -3*bottom,0)
-	a.Set(edges=edges1, name='leftedge')
-
-    	e1 = a.instances['Frame-1'].edges
-        edges1 = e1.getByBoundingBox(-0.98*left, 3*bottom, 0, -1.02*left, -3*bottom,0)
-	a.Set(edges=edges1, name='rightedge')
-
-#Mirror symmetry along x-direction
-	region = a.sets['leftedge']
-    	mdb.models['standard'].XsymmBC(name='leftedge', createStepName='Apply load', 
-        region=region, localCsys=None)
-
-	region=a.sets['rightedge']
-	mdb.models['standard'].XsymmBC(name='rightedge', createStepName='Apply load', 
-        region=region, localCsys=None)
-#Overclosure initial protection
-	mdb.models['standard'].StdInitialization(name='CInit-1')
-
-
+    	#RP = a.ReferencePoint(point=a.instances['planetop-1'].InterestingPoint(edge=e1.findAt(
+        #	coordinates=coord[0][1]), rule=MIDDLE))
+	#RP_id = RP.id
+        #region2=a.instances['planetop-1'].sets['planar2']
+     	#r1 = a.referencePoints
+    	#refPoints1 = mdb.models['standard'].rootAssembly.referencePoints[RP_id]		
+    	#region1=regionToolset.Region(referencePoints=(refPoints1,))
+    	#mdb.models['standard'].RigidBody(name='Constraint-1', refPointRegion=region1, 
+        #	bodyRegion=region2)
 	
- 	 
+
+	#Rigid body definition for bot plane
+        a = mdb.models['standard'].rootAssembly
+        e2 = a.instances['plane-1'].edges
+	coord = e2.getClosest(coordinates=((0,bottom+thickness,0),))
+
+    	RP=a.ReferencePoint(point=a.instances['plane-1'].InterestingPoint(edge=e2.findAt(
+        	coordinates=coord[0][1]), rule=MIDDLE))
+	RP_id = RP.id
+        region2=a.instances['plane-1'].sets['planar']
+     	r1 = a.referencePoints
+    	refPoints1 = mdb.models['standard'].rootAssembly.referencePoints[RP_id]
+    	region1=regionToolset.Region(referencePoints=(refPoints1,))
+    	mdb.models['standard'].RigidBody(name='Constraint-2', refPointRegion=region1, 
+        	bodyRegion=region2)
+
+	mdb.models['standard'].DisplacementBC(name='planelock', 
+        	createStepName='Apply load', region=region1, u1=SET, u2=SET, ur3=SET, 
+        	amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
+        	localCsys=None)
   
-def loader(mdb, vex, force=0, velocity=False, velx=0, vely=0, velr3=0, time=2.0, maxinc=10000, initinc=0.01, minimum=2e-05, maximum=0.0125):
-#Must give at least one argument for this to work 
+	s2 = a.instances['plane-1'].edges
+	coord = s2.getClosest(coordinates=((-left,bottom-thickness/2,0),))
+	side1Edges1 = s2.findAt((coord[0][1],))
+	coord = s2.getClosest(coordinates=((left,bottom-thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+	
+	s2 = a.instances['planetop-1'].edges
+	coord = s2.getClosest(coordinates=((-left,-bottom+thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+	coord = s2.getClosest(coordinates=((left,-bottom+thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+
+	s2 = a.instances['Frame-1'].edges
+	coord = s2.getClosest(coordinates=((-left,bottom+thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+	coord = s2.getClosest(coordinates=((left,bottom+thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+	coord = s2.getClosest(coordinates=((-left,-bottom-thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+	coord = s2.getClosest(coordinates=((left,-bottom-thickness/2,0),))
+	side1Edges1 += s2.findAt((coord[0][1],))
+
+	regionbot = a.Set(edges=side1Edges1, name='xsym')
+
+	mdb.models['standard'].XsymmBC(name='xsym', createStepName='Initial', 
+        region=regionbot, localCsys=None)
+
+def loader(mdb, radius, thickness, pressure):
+#Input: Model database, radius of the polygon, thickness of the top plane, and pressure 
+#Applies pressure to top edge of planetop
 	from abaqus import *
 	from abaqusConstants import *	
 	a = mdb.models['standard'].rootAssembly
-#	v = a.instances['Frame-1'].vertices
+	
+	s2 = a.instances['planetop-1'].edges
+	coord = s2.getClosest(coordinates=((0,radius+2*thickness,0),))
+	side1Edges1 = s2.findAt((coord[0][1],))
+	region = a.Surface(side1Edges=side1Edges1, name='planetop-top')
 
-	left = min(vex[0][0])
-	bottom = min(vex[0][1])
-	if velocity:
-		#Create a step with increments 
-		mdb.models['standard'].StaticStep(name='Apply load', previous='Initial', description='Description', timePeriod=time, maxNumInc=maxinc, initialInc=initinc, minInc=minimum, maxInc=maximum)
-		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-		region = a.instances['planetop-1'].sets['planar2']
-       		mdb.models['standard'].VelocityBC(name='velocity', createStepName='Apply load', 
-        	region=region, v1=velx, v2=vely, vr3=velr3, amplitude=UNSET, 
-        	localCsys=None, distributionType=UNIFORM, fieldName='')
 
-#	if force != 0: 
-#		mdb.models['standard'].StaticLinearPerturbationStep(name='Apply load', 
-#    		previous='Initial', description='10kN central load', 
-#    		matrixSolver=SOLVER_DEFAULT)
-#		session.viewports['Viewport: 1'].assemblyDisplay.setValues(step='Apply load')
-#		mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
-#   		variables=PRESELECT, region=MODEL)
-#		
-#		region=((v.findAt(((vertices[0][0], vertices[1][0], 0.0), ), ), ), )
-#		mdb.models['standard'].ConcentratedForce(name='Force', 
- #   		createStepName='Apply load', 
-  #  		region=region, cf2=-force)	
+	data = tuple((0.001 * t / 100, 3.4 * (1 - t / 100.0)) for t in range(100))
+   	mdb.models['standard'].TabularAmplitude(name='Blast Amplitude', timeSpan=TOTAL, smooth=SOLVER_DEFAULT, 
+        	data=data+((0.001, 0.0), (0.002, 0.0), (100000, 0.0)))
+        mdb.models['standard'].Pressure(name='Load 1', createStepName='Apply load', region=region, magnitude=3.4, amplitude='Blast Amplitude')
+
 def radiuschecker(startx, maxrad, x, y):
 #Assumed that starty = zero 
 #Returns true if x,y is more than maxrad away from (startx,0) 
 	return maxrad<((x-startx)**2+y**2)**0.5
-def edgeselector(mdb, vex, radius):
-#Generates the interacting sets for the contact between the two polygons
-#Then creates the contact interaction between the two 
 
+def edgecentre(vex):
+#Input: 2d array of vertices for the L/R polygon parts
+#Returns the list of coordinates for the points between two vertices
+#Note: To be used in conjunction with the edgeselector function
+	array1x=[]
+	array1y=[]
+	array2x=[]
+	array2y=[]
+	length = len(vex[0][0])
+	for i in range(1, length):
+		array1x.append((vex[0][0][i]+vex[0][0][i-1])/2)
+		array1y.append((vex[0][1][i]+vex[0][1][i-1])/2)
+		array2x.append((vex[1][0][i]+vex[1][0][i-1])/2)
+		array2y.append((vex[1][1][i]+vex[1][1][i-1])/2)
+	array1x.append((vex[0][0][length-1]+vex[0][0][0])/2)
+	array1y.append((vex[0][1][length-1]+vex[0][1][0])/2)
+	array2x.append((vex[1][0][length-1]+vex[1][0][0])/2)
+	array2y.append((vex[1][1][length-1]+vex[1][1][0])/2)
+
+
+	
+	return [[array1x,array1y],[array2x,array2y]]
+
+def edgeselector(mdb, vex, radius, thickness):
+#Input: Model database, array of vertices for L/R polygon parts, and radius of the polygon 
+#Generates the interacting sets for the contacts
+#Then creates the contact interaction between them
+
+
+	vex = edgecentre(vex)
 	from abaqus import *
 	from abaqusConstants import *
 	a = mdb.models['standard'].rootAssembly
 	s1 = a.instances['Frame-1'].edges
+
+	mdb.models['standard'].ContactProperty('interior')
+    	mdb.models['standard'].interactionProperties['interior'].NormalBehavior(
+        pressureOverclosure=HARD, allowSeparation=ON, 
+        constraintEnforcementMethod=DEFAULT)	
+
+
+
 	startx = min(vex[0][0])
+	
 	first = False 
 	alter = False 
-	for i in range(0, len(vex[0][0])-1):
+	for i in range(0, len(vex[0][0])):
 		x = vex[0][0][i]
 		y = vex[0][1][i]
 		coord = s1.getClosest(coordinates=((x,y,0),))
-		if radiuschecker(startx, radius, x,y):
+		if radiuschecker(startx, radius-thickness*0.4, x,y):
 			
 			if first==True:
 				side1Edges1 += s1.findAt((coord[0][1],))
@@ -366,16 +355,16 @@ def edgeselector(mdb, vex, radius):
 				side1Edges2 = s1.findAt((coord[0][1],))
 				alter = True
 
-	region1=a.Surface(side1Edges=side1Edges1, name='m_Surf-4')
-	regionalt1 = a.Surface(side1Edges=side1Edges2, name='innerl')
+	region1=a.Surface(side1Edges=side1Edges1, name='polygonouterL')
+	regionalt1 = a.Surface(side1Edges=side1Edges2, name='polygoninnerl')
 	
 	first = False 
 	alter = False
-	for i in range(0, len(vex[0][0])-1):
+	for i in range(0, len(vex[0][0])):
 		x = vex[1][0][i]
 		y = vex[1][1][i]
 		coord = s1.getClosest(coordinates=((x,y,0),))
-		if radiuschecker(-startx, radius, x,y):
+		if radiuschecker(-startx, radius-thickness*0.4, x,y):
 			
 			if first==True:
 				side1Edges1 += s1.findAt((coord[0][1],))
@@ -388,30 +377,64 @@ def edgeselector(mdb, vex, radius):
 			else:	#Initializing side1Edges1 for iteration
 				side1Edges2 = s1.findAt((coord[0][1],))
 				alter = True
-
-	region2=a.Set(edges=side1Edges1, name='s_Set-5')
-	regionalt2 = a.Surface(side1Edges=side1Edges2, name='innerr')
-	mdb.models['standard'].SurfaceToSurfaceContactStd(name='Int-3', 
-        	createStepName='Apply load', master=region1, slave=region2, 
-        	sliding=FINITE, enforcement=NODE_TO_SURFACE, thickness=OFF, 
-        	interactionProperty='interior', surfaceSmoothing=NONE, 
-        	adjustMethod=NONE, smooth=0.2, initialClearance=OMIT, datumAxis=None, 
-        	clearanceRegion=None)
 	
-	mdb.models['standard'].SelfContactStd(name='selfl', 
-        	createStepName='Apply load', surface=regionalt1, 
-        	interactionProperty='interior', thickness=ON)
-    	mdb.models['standard'].interactions['selfl'].setValues(
-        	enforcement=NODE_TO_SURFACE, thickness=OFF, smooth=0.2, 
-        	supplementaryContact=SELECTIVE)
 
-	mdb.models['standard'].SelfContactStd(name='selfr', 
-        	createStepName='Apply load', surface=regionalt2, 
-        	interactionProperty='interior', thickness=ON)
-    	mdb.models['standard'].interactions['selfr'].setValues(
-        	enforcement=NODE_TO_SURFACE, thickness=OFF, smooth=0.2, 
-        	supplementaryContact=SELECTIVE)
 
+
+	region2=a.Surface(side1Edges=side1Edges1, name='polygonouterr')
+	regionalt2 = a.Surface(side1Edges=side1Edges2, name='polygoninnerr')
+	
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygon to polygon', 
+        	createStepName='Apply load', master=region1, slave=region2, 
+        	mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
+		clearanceRegion=None)
+	mdb.models['standard'].SelfContactExp(name='selfl', createStepName='Initial', 
+        	surface=regionalt1, mechanicalConstraint=KINEMATIC, 
+        	interactionProperty='interior')
+	mdb.models['standard'].SelfContactExp(name='selfr', createStepName='Initial', 
+        	surface=regionalt2, mechanicalConstraint=KINEMATIC, 
+        	interactionProperty='interior')
+	
+	s2 = a.instances['planetop-1'].edges
+	coord = s2.getClosest(coordinates=((0,radius,0),))
+	side1Edges1 = s2.findAt((coord[0][1],))
+	regiontop = a.Surface(side1Edges=side1Edges1, name='planetop-bottom')
+	
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonL - planetop', 
+        	createStepName='Apply load', master=regiontop, slave=region1, 
+        	mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
+		clearanceRegion=None)
+
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonR - planetop', 
+        	createStepName='Apply load', master=regiontop, slave=region2, 
+        	mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
+		clearanceRegion=None)
+
+	s2 = a.instances['plane-1'].edges
+	coord = s2.getClosest(coordinates=((0,-radius,0),))
+	side1Edges1 = s2.findAt((coord[0][1],))
+	regionbot = a.Surface(side1Edges=side1Edges1, name='plane-top')
+
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonL - planebot', 
+        	createStepName='Apply load', master=regionbot, slave=region1, 
+		mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
+		clearanceRegion=None)
+
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonR - planebot', 
+        	createStepName='Apply load', master=regionbot, slave=region2, 
+        	mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
+		clearanceRegion=None)
+	
+	mdb.models['standard'].SurfaceToSurfaceContactExp(name='planetop-plane',
+		createStepName='Apply load', master=regiontop, slave=regionbot,
+		mechanicalConstraint=KINEMATIC, sliding=FINITE, 
+		interactionProperty='interior', initialClearance=OMIT, datumAxis=None,
+		clearanceRegion=None)
 def partition(mdb, innerv, outerv):
 #Input: model database, array of vertices for the inner polygon, array of vertices for the outer polygon
 #Generates partition at each kink of polygon 
@@ -445,5 +468,33 @@ def partition(mdb, innerv, outerv):
     s.unsetPrimaryObject()
     del mdb.models['standard'].sketches['__profile__']
 
-
+def const_mass(radius, thickness, sides):
+	import math
 	
+	p_sin = math.sin(180/sides)
+	p_cos = math.cos(180/sides) 
+	p_tan = p_sin/p_cos
+
+	sidelen = sidelength(radius, sides)
+	inner_p = sidelen*sides
+	inner_a = sidelen/2/p_tan
+	inner_area = inner_p*inner_a/2
+    
+	sidelen = sidelength(radius+thickness, sides)
+	outer_p = sidelen*sides
+	outer_a = sidelen/2/p_tan
+	outer_area = outer_a*outer_p/2
+    
+	area = outer_area-inner_area 
+
+	print "Auto-generated list of parameters for constant mass" 
+	 
+	n = 4
+	while n <= 10:
+		radicand = area/n/p_sin/p_cos+radius**2
+        	if  radicand >0:
+			thick = radicand**0.5-radius
+              	else:
+            		thick = -1 
+        	print "%d-sides: Thickness: %f" % (n, thick) 
+        	n += 2
