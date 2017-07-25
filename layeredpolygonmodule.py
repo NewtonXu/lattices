@@ -221,10 +221,8 @@ def rigidbody(mdb, vertices, thickness):
     mdb.models['standard'].RigidBody(
         name='Constraint-2', refPointRegion=region1, bodyRegion=region2)
 
-
-def bc_bot(polygontype, mdb, vertices, thickness,layer=1, name="Frame-1"):
-    """Input: polygontype = (int) 0 = discrete plane, 1 = integrated plane
-              mdb = (obj) model database
+def bc_bot(mdb, vertices, thickness,layer=1, name="Frame-1"):
+    """Input: mdb = (obj) model database
               vertices = (list) list of polygon vertices
               thickness = (f) thickness of polygon
        Function: Applies x-symmetry to sides of model and zero-displacement to
@@ -241,106 +239,61 @@ def bc_bot(polygontype, mdb, vertices, thickness,layer=1, name="Frame-1"):
 
     bottom = min(vertices[0][1])
     left = min(vertices[0][0])
-    if polygontype == 0:
-        a = mdb.models['standard'].rootAssembly
-        s2 = a.instances['plane-1'].edges
-        coord = s2.getClosest(coordinates=((0,bottom-thickness,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        region2 = a.Set(edges=side1Edges1, name='plane-bot')
 
-	a = mdb.models['standard'].rootAssembly
-        s3 = a.instances['planetop-1'].edges
-        coord = s3.getClosest(coordinates=((0,-bottom+thickness,0),))
-        side1Edges1 = s3.findAt((coord[0][1],))
-        region3 = a.Set(edges=side1Edges1, name='plane-top')
+    a = mdb.models['standard'].rootAssembly
+    s2 = a.instances[name].edges
+    s2a = a.instances[name].surfaces
+    coord = s2.getClosest(coordinates=((0,bottom-thickness,0),))
+    side1Edges1 = s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((left+thickness,bottom-thickness,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((-left-thickness,bottom-thickness,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
 
+    region2 = a.Set(edges=side1Edges1, name='plane-bot'+str(layer))
+    region2a = a.Surface(side1Edges=side1Edges1, name='plane-bot'+str(layer))
+
+    a = mdb.models['standard'].rootAssembly
+    s2 = a.instances[name].edges
+    coord = s2.getClosest(coordinates=((0,-bottom+thickness,0),))
+    side1Edges1 = s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((left+thickness,-bottom+thickness,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((-left-thickness,-bottom+thickness,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+
+    region3 = a.Set(edges=side1Edges1, name='plane-top'+str(layer))
+    region3a = a.Surface(side1Edges=side1Edges1, name='plane-top'+str(layer))
+
+    if layer ==1:
         mdb.models['standard'].DisplacementBC(name='planelock', 
             createStepName='Apply load', region=region2, u1=SET, u2=SET, ur3=SET, 
             amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
             localCsys=None)
-  
-        s2 = a.instances['plane-1'].edges
-        coord = s2.getClosest(coordinates=((-left,bottom-thickness/2,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,bottom-thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-    
-        s2 = a.instances['planetop-1'].edges
-        coord = s2.getClosest(coordinates=((-left,-bottom+thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,-bottom+thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
 
-        s2 = a.instances['Frame-1'].edges
-        coord = s2.getClosest(coordinates=((-left,bottom+thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,bottom+thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((-left,-bottom-thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,-bottom-thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((-left,bottom+thickness/2,0),))
+    side1Edges1 = s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((left,bottom+thickness/2,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((-left,-bottom-thickness/2,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((left,-bottom-thickness/2,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
 
-        regionbot = a.Set(edges=side1Edges1, name='xsym')
+    regionbot = a.Set(edges=side1Edges1, name='xsym'+str(layer))
 
-        mdb.models['standard'].XsymmBC(name='xsym', createStepName='Initial', 
-            region=regionbot, localCsys=None)
-    else:
-        a = mdb.models['standard'].rootAssembly
-        s2 = a.instances[name].edges
-        s2a = a.instances[name].surfaces
-        coord = s2.getClosest(coordinates=((0,bottom-thickness,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left+thickness,bottom-thickness,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((-left-thickness,bottom-thickness,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-
-        region2 = a.Set(edges=side1Edges1, name='plane-bot'+str(layer))
-        region2a = a.Surface(side1Edges=side1Edges1, name='plane-bot'+str(layer))
-
-        a = mdb.models['standard'].rootAssembly
-        s2 = a.instances[name].edges
-        coord = s2.getClosest(coordinates=((0,-bottom+thickness,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left+thickness,-bottom+thickness,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((-left-thickness,-bottom+thickness,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-
-	region3 = a.Set(edges=side1Edges1, name='plane-top'+str(layer))
-        region3a = a.Surface(side1Edges=side1Edges1, name='plane-top'+str(layer))
-
-	if layer ==1:
-            mdb.models['standard'].DisplacementBC(name='planelock', 
-                createStepName='Apply load', region=region2, u1=SET, u2=SET, ur3=SET, 
-                amplitude=UNSET, fixed=OFF, distributionType=UNIFORM, fieldName='', 
-                localCsys=None)
-
-        coord = s2.getClosest(coordinates=((-left,bottom+thickness/2,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,bottom+thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((-left,-bottom-thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left,-bottom-thickness/2,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-
-        regionbot = a.Set(edges=side1Edges1, name='xsym'+str(layer))
-
-        mdb.models['standard'].XsymmBC(name='xsym'+str(layer), createStepName='Initial', 
-            region=regionbot, localCsys=None)
+    mdb.models['standard'].XsymmBC(name='xsym'+str(layer), createStepName='Initial', 
+        region=regionbot, localCsys=None)
 
 
-def loader(polygontype, mdb, left, bottom, radius, thickness, planethick, pressure, name="Frame-1"):
-    """Input: polygontype = (int) 0 = discrete plane, 1 = integrated plane
-              mdb = (obj) model database
+
+def loader(mdb, left, bottom, radius, thickness, planethick, pressure, name="Frame-1"):
+    """Input: mdb = (obj) model database
               left = (f) min-x coord of polygon
               bottom = (f) min-y coord of polygon
               radius = (f) radius of polygon
               thickness = (f) thickness of polygon
               planethick = (f) thickness of the plane
-                           Note if polygontype == 1, this equals thickness
               pressure = (f) pressure in MPA
        Function: Applies blast pressure to top plane (creates load+amplitude) 
                  Amplitude: (0.001 * t / 100, 3.4 * (1 - t / 100.0)
@@ -349,20 +302,15 @@ def loader(polygontype, mdb, left, bottom, radius, thickness, planethick, pressu
     from abaqus import *
     from abaqusConstants import *
     a = mdb.models['standard'].rootAssembly
-    if polygontype ==0: 
-        s2 = a.instances['planetop-1'].edges
-        coord = s2.getClosest(coordinates=((0,radius+thickness+planethick,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        region = a.Surface(side1Edges=side1Edges1, name='planetop-top')
-    else:
-        s2 = a.instances[name].edges
-        coord = s2.getClosest(coordinates=((0,radius+thickness+planethick,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((left+thickness, radius+thickness+planethick,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        coord = s2.getClosest(coordinates=((-left-thickness, radius+thickness+planethick,0),))
-        side1Edges1 += s2.findAt((coord[0][1],))
-        region = a.Surface(side1Edges=side1Edges1, name='planetop-top')
+    
+    s2 = a.instances[name].edges
+    coord = s2.getClosest(coordinates=((0,radius+thickness+planethick,0),))
+    side1Edges1 = s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((left+thickness, radius+thickness+planethick,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    coord = s2.getClosest(coordinates=((-left-thickness, radius+thickness+planethick,0),))
+    side1Edges1 += s2.findAt((coord[0][1],))
+    region = a.Surface(side1Edges=side1Edges1, name='planetop-top')
 
     #data = tuple((0.00001 * t / 100, 3.4 * (1 - t / 100.0)) for t in range(100))
     mdb.models['standard'].TabularAmplitude(name='Blast Amplitude', 
@@ -468,10 +416,8 @@ def boxselector(mdb, vex, radius, thickness, distance,layer=1,name="Frame-1"):
         surface=regionalt2, mechanicalConstraint=KINEMATIC, 
         interactionProperty='interior')
 
-
-def edgeselector(polygontype, mdb, vex, radius, thickness, sides, apothem,layer=1,name="Frame-1"):
-    """Input: polygontype = (int) 0=discrete plane, 1=integrated plane
-              mdb = (obj) model database
+def edgeselector(mdb, vex, radius, thickness, sides, apothem,layer=1,name="Frame-1"):
+    """Input: mdb = (obj) model database
               vex = (list) vertices of polygon
               radius = (f) outer radius of polygon
               thickness = (f) thickness of polygon
@@ -496,160 +442,65 @@ def edgeselector(polygontype, mdb, vex, radius, thickness, sides, apothem,layer=
         pressureOverclosure=HARD, allowSeparation=ON, 
         constraintEnforcementMethod=DEFAULT)	
     
-    if polygontype ==0:
-        first = False 
-        alter = False 
-        for i in range(0, len(vex[0][0])):
-            x = vex[0][0][i]
-            y = vex[0][1][i]
-            coord = s1.getClosest(coordinates=((x,y,0),))
-            if radiuschecker(startx, radius-thickness*0.4, x,y):
-                if first==True:
-                    side1Edges1 += s1.findAt((coord[0][1],))
-                else:	#Initializing side1Edges1 for iteration
-                    side1Edges1 = s1.findAt((coord[0][1],))
-                    first = True
-            else:
+    first = False 
+    alter = False 
+    for i in range(0, len(vex[0][0])):
+        x = vex[0][0][i]
+        y = vex[0][1][i]
+        coord = s1.getClosest(coordinates=((x,y,0),))
+        if radiuschecker(startx, apothem+thickness*0.4, x,y) and abs(y)<(apothem+thickness*0.4):
+            if first==True:
+                side1Edges1 += s1.findAt((coord[0][1],))
+            else:	#Initializing side1Edges1 for iteration
+                side1Edges1 = s1.findAt((coord[0][1],))
+                first = True
+        else:
+            if abs(y)<(apothem+thickness*0.4):
                 if alter==True:
                     side1Edges2 += s1.findAt((coord[0][1],))
                 else:	#Initializing side1Edges1 for iteration
                     side1Edges2 = s1.findAt((coord[0][1],))
                     alter = True
 
-        region1=a.Surface(side1Edges=side1Edges1, name='polygonouterL')
-        regionalt1 = a.Surface(side1Edges=side1Edges2, name='polygoninnerl')
-
-        first = False 
-        alter = False
-        for i in range(0, len(vex[0][0])):
-            x = vex[1][0][i]
-            y = vex[1][1][i]
-            coord = s1.getClosest(coordinates=((x,y,0),))
-            if radiuschecker(-startx, radius-thickness*0.4, x,y):
-                if first==True:
-                    side1Edges1 += s1.findAt((coord[0][1],))
-                else: 
-                    side1Edges1 = s1.findAt((coord[0][1],))
-                    first=True
-            else:
+    region1=a.Surface(side1Edges=side1Edges1, name='polygonouterL'+str(layer))
+    regionalt1 = a.Surface(side1Edges=side1Edges2, name='polygoninnerl'+str(layer))
+    regioninner = side1Edges1
+    first = False 
+    alter = False
+    for i in range(0, len(vex[0][0])):
+        x = vex[1][0][i]
+        y = vex[1][1][i]
+        coord = s1.getClosest(coordinates=((x,y,0),))
+        if radiuschecker(-startx, apothem+thickness*0.4, x,y) and abs(y)<(apothem+thickness*0.4):
+            if first==True:
+                side1Edges1 += s1.findAt((coord[0][1],))
+            else: 
+                side1Edges1 = s1.findAt((coord[0][1],))
+                first=True
+        else:
+            if abs(y)<(apothem+thickness*0.4):
                 if alter==True:
                     side1Edges2 += s1.findAt((coord[0][1],))
-                else:#Initializing side1Edges1 for iteration
+                else:	#Initializing side1Edges1 for iteration
                     side1Edges2 = s1.findAt((coord[0][1],))
                     alter = True
-
-    else:
-        first = False 
-        alter = False 
-        for i in range(0, len(vex[0][0])):
-            x = vex[0][0][i]
-            y = vex[0][1][i]
-            coord = s1.getClosest(coordinates=((x,y,0),))
-            if radiuschecker(startx, apothem+thickness*0.4, x,y) and abs(y)<(apothem+thickness*0.4):
-                if first==True:
-                    side1Edges1 += s1.findAt((coord[0][1],))
-                else:	#Initializing side1Edges1 for iteration
-                    side1Edges1 = s1.findAt((coord[0][1],))
-                    first = True
-            else:
-                if abs(y)<(apothem+thickness*0.4):
-                    if alter==True:
-                        side1Edges2 += s1.findAt((coord[0][1],))
-                    else:	#Initializing side1Edges1 for iteration
-                        side1Edges2 = s1.findAt((coord[0][1],))
-                        alter = True
-
-        region1=a.Surface(side1Edges=side1Edges1, name='polygonouterL'+str(layer))
-        regionalt1 = a.Surface(side1Edges=side1Edges2, name='polygoninnerl'+str(layer))
-        regioninner = side1Edges1
-        first = False 
-        alter = False
-        for i in range(0, len(vex[0][0])):
-            x = vex[1][0][i]
-            y = vex[1][1][i]
-            coord = s1.getClosest(coordinates=((x,y,0),))
-            if radiuschecker(-startx, apothem+thickness*0.4, x,y) and abs(y)<(apothem+thickness*0.4):
-                if first==True:
-                    side1Edges1 += s1.findAt((coord[0][1],))
-                else: 
-                    side1Edges1 = s1.findAt((coord[0][1],))
-                    first=True
-            else:
-                if abs(y)<(apothem+thickness*0.4):
-                    if alter==True:
-                        side1Edges2 += s1.findAt((coord[0][1],))
-                    else:	#Initializing side1Edges1 for iteration
-                        side1Edges2 = s1.findAt((coord[0][1],))
-                        alter = True
-        coord = s1.getClosest(coordinates=((0,starty,0),))
-        regioninner += s1.findAt((coord[0][1],))
-        coord = s1.getClosest(coordinates=((0,-starty,0),))
-        regioninner += s1.findAt((coord[0][1],))
-        regioninner += side1Edges1
-        region2=a.Surface(side1Edges=side1Edges1, name='polygonouterr'+str(layer))
-        regionalt2 = a.Surface(side1Edges=side1Edges2, name='polygoninnerr'+str(layer))
-        regioninner = a.Surface(side1Edges=regioninner, name='polygoninner'+str(layer))
-        mdb.models['standard'].SelfContactExp(name='inner'+str(layer), createStepName='Initial', 
-            surface=regioninner, mechanicalConstraint=KINEMATIC, 
-            interactionProperty='interior')
-        mdb.models['standard'].SelfContactExp(name='selfl'+str(layer), createStepName='Initial', 
-            surface=regionalt1, mechanicalConstraint=KINEMATIC, 
-            interactionProperty='interior')
-        mdb.models['standard'].SelfContactExp(name='selfr'+str(layer), createStepName='Initial', 
-            surface=regionalt2, mechanicalConstraint=KINEMATIC, 
-            interactionProperty='interior')
-
-    if polygontype == 0:
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygon to polygon'+str(layer), 
-            createStepName='Apply load', master=region1, slave=region2, 
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, 
-            datumAxis=None, clearanceRegion=None)
-        mdb.models['standard'].SelfContactExp(name='selfl'+str(layer), createStepName='Initial', 
-            surface=regionalt1, mechanicalConstraint=KINEMATIC, 
-            interactionProperty='interior')
-        mdb.models['standard'].SelfContactExp(name='selfr'+str(layer), createStepName='Initial', 
-            surface=regionalt2, mechanicalConstraint=KINEMATIC, 
-            interactionProperty='interior')
-
-        s2 = a.instances['planetop-1'].edges
-
-        coord = s2.getClosest(coordinates=((0,radius,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        regiontop = a.Surface(side1Edges=side1Edges1, name='planetop-bottom')
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonL - planetop', 
-            createStepName='Apply load', master=regiontop, slave=region1, 
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
-            clearanceRegion=None)
-
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonR - planetop', 
-            createStepName='Apply load', master=regiontop, slave=region2, 
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, 
-            datumAxis=None, clearanceRegion=None)
-
-        coord = s2.getClosest(coordinates=((0,-radius,0),))
-        side1Edges1 = s2.findAt((coord[0][1],))
-        regionbot = a.Surface(side1Edges=side1Edges1, name='plane-top')
-
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonL - planebot', 
-            createStepName='Apply load', master=regionbot, slave=region1, 
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, 
-            datumAxis=None, clearanceRegion=None)
-
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='polygonR - planebot', 
-            createStepName='Apply load', master=regionbot, slave=region2, 
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, datumAxis=None, 
-            clearanceRegion=None)
-
-        mdb.models['standard'].SurfaceToSurfaceContactExp(name='planetop-plane',
-            createStepName='Apply load', master=regiontop, slave=regionbot,
-            mechanicalConstraint=KINEMATIC, sliding=FINITE, 
-            interactionProperty='interior', initialClearance=OMIT, datumAxis=None,
-            clearanceRegion=None)
+    coord = s1.getClosest(coordinates=((0,starty,0),))
+    regioninner += s1.findAt((coord[0][1],))
+    coord = s1.getClosest(coordinates=((0,-starty,0),))
+    regioninner += s1.findAt((coord[0][1],))
+    regioninner += side1Edges1
+    region2=a.Surface(side1Edges=side1Edges1, name='polygonouterr'+str(layer))
+    regionalt2 = a.Surface(side1Edges=side1Edges2, name='polygoninnerr'+str(layer))
+    regioninner = a.Surface(side1Edges=regioninner, name='polygoninner'+str(layer))
+    mdb.models['standard'].SelfContactExp(name='inner'+str(layer), createStepName='Initial', 
+        surface=regioninner, mechanicalConstraint=KINEMATIC, 
+        interactionProperty='interior')
+    mdb.models['standard'].SelfContactExp(name='selfl'+str(layer), createStepName='Initial', 
+        surface=regionalt1, mechanicalConstraint=KINEMATIC, 
+        interactionProperty='interior')
+    mdb.models['standard'].SelfContactExp(name='selfr'+str(layer), createStepName='Initial', 
+        surface=regionalt2, mechanicalConstraint=KINEMATIC, 
+        interactionProperty='interior')    
 def layerinteraction(mdb,layer):
     """Input: mdb = (obj) model database
               layer = (int) layer number
@@ -668,9 +519,8 @@ def layerinteraction(mdb,layer):
             interactionProperty='interior', initialClearance=OMIT, datumAxis=None,
             clearanceRegion=None)
 
-def partition(polygontype, mdb, innerv, outerv, radius, distance, thickness):
-    """Input: polygontype = (int) 0=discrete plane, 1=integrated plane
-              mdb = (obj) model database
+def partition(mdb, innerv, outerv, radius, distance, thickness):
+    """Input: mdb = (obj) model database
               innerv = (list) list of vertices for inner polygon
               outerv = (list) list of vertices for outer polygon
               radius = (f) outer radius of polygon
@@ -688,57 +538,32 @@ def partition(polygontype, mdb, innerv, outerv, radius, distance, thickness):
     bottom = min(outerv[1])
     inbottom = min(innerv[1])
     
-    if polygontype==0:
-        p = mdb.models['standard'].parts['Frame']
-        f = p.faces
-        pickedRegions = f.getByBoundingBox(1.02*left, 1.02*bottom,0,-1.02*left,-1.02*bottom,0)
-        p.deleteMesh(regions=pickedRegions)
-        p = mdb.models['standard'].parts['Frame']
-        f, e, d = p.faces, p.edges, p.datums
-        t = p.MakeSketchTransform(sketchPlane=f[0], sketchPlaneSide=SIDE1, 
-            origin=(0, 0.0, 0.0))
-        s = mdb.models['standard'].ConstrainedSketch(name='__profile__', 
-            sheetSize=4.16, gridSpacing=0.1, transform=t)
-        g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
-        s.setPrimaryObject(option=SUPERIMPOSE)
-        p = mdb.models['standard'].parts['Frame']
-        p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-        for i in range(0, len(outerv[0])):
-            s.Line(point1=(innerv[0][i],innerv[1][i]), point2=(outerv[0][i],outerv[1][i]))
-        p = mdb.models['standard'].parts['Frame']
-        f = p.faces
-        pickedFaces = f.getByBoundingBox(3*left, 3*bottom,0,-3*left,-3*bottom,0)
-        e1, d2 = p.edges, p.datums
-        p.PartitionFaceBySketch(faces=pickedFaces, sketch=s)
-        s.unsetPrimaryObject()
-        del mdb.models['standard'].sketches['__profile__']
-    else:
-        p = mdb.models['standard'].parts['Frame']
-        f = p.faces
-        pickedRegions = f.getByBoundingBox(3*left, 3*bottom,0,-3*left,-3*bottom,0)
-        p.deleteMesh(regions=pickedRegions)
-        p= mdb.models['standard'].parts['Frame']
-        f, e, d = p.faces, p.edges, p.datums
-        t = p.MakeSketchTransform(sketchPlane=f[0], sketchPlaneSide=SIDE1, origin=(
-            0, 0.0, 0.0))
-        s = mdb.models['standard'].ConstrainedSketch(name='__profile__', 
-            sheetSize=4.16, gridSpacing=0.1, transform=t)
-        g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
-        s.setPrimaryObject(option=SUPERIMPOSE)
-        p = mdb.models['standard'].parts['Frame']
-        p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
-        for i in range(0, len(outerv[0])):
-	    if abs(outerv[1][i]) < -inbottom:
+    p = mdb.models['standard'].parts['Frame']
+    f = p.faces
+    pickedRegions = f.getByBoundingBox(3*left, 3*bottom,0,-3*left,-3*bottom,0)
+    p.deleteMesh(regions=pickedRegions)
+    p= mdb.models['standard'].parts['Frame']
+    f, e, d = p.faces, p.edges, p.datums
+    t = p.MakeSketchTransform(sketchPlane=f[0], sketchPlaneSide=SIDE1, origin=(
+        0, 0.0, 0.0))
+    s = mdb.models['standard'].ConstrainedSketch(name='__profile__', 
+        sheetSize=4.16, gridSpacing=0.1, transform=t)
+    g, v, d1, c = s.geometry, s.vertices, s.dimensions, s.constraints
+    s.setPrimaryObject(option=SUPERIMPOSE)
+    p = mdb.models['standard'].parts['Frame']
+    p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
+    for i in range(0, len(outerv[0])):
+    	if abs(outerv[1][i]) < -inbottom:
             	s.Line(point1=(innerv[0][i],innerv[1][i]), point2=(outerv[0][i],outerv[1][i]))
-        s.Line(point1=(3*left,-inbottom),point2=(-3*left,-inbottom))
-        s.Line(point1=(3*left,inbottom),point2=(-3*left,inbottom))
-        p = mdb.models['standard'].parts['Frame']
-        f = p.faces
-        pickedFaces = f.getByBoundingBox(20*left, 20*bottom,0,-20*left,-20*bottom,0)
-        e1, d2 = p.edges, p.datums
-        p.PartitionFaceBySketch(faces=pickedFaces, sketch=s)
-        s.unsetPrimaryObject()
-        del mdb.models['standard'].sketches['__profile__']
+    s.Line(point1=(3*left,-inbottom),point2=(-3*left,-inbottom))
+    s.Line(point1=(3*left,inbottom),point2=(-3*left,inbottom))
+    p = mdb.models['standard'].parts['Frame']
+    f = p.faces
+    pickedFaces = f.getByBoundingBox(20*left, 20*bottom,0,-20*left,-20*bottom,0)
+    e1, d2 = p.edges, p.datums
+    p.PartitionFaceBySketch(faces=pickedFaces, sketch=s)
+    s.unsetPrimaryObject()
+    del mdb.models['standard'].sketches['__profile__']
 def constraint(mdb,i):
     """Input: mdb = (obj) model database
               i = (int) layer number 
@@ -755,6 +580,29 @@ def constraint(mdb,i):
     mdb.models['standard'].Tie(name='Constraint'+str(i), master=region1, slave=region2, 
         positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, 
         thickness=ON)
+
+def mass(radius,thickness,sides,distance,mdb):
+    import math
+    total_area = polygonarea(mdb)
+    for n in range(4,14,2):
+	theta_1 = math.pi/2-math.pi/n
+        theta_2 = math.pi/2-3*math.pi/n
+        A = (n-2)*math.sin(math.pi/n)*math.cos(math.pi/n)
+	B = 4*math.sin(math.pi/2-math.pi/n)
+        C = 2*(math.sin(theta_1)*math.cos(theta_1)-((math.sin(theta_1))**2)*(math.cos(theta_2)-math.cos(theta_1))/(math.sin(theta_2)-math.sin(theta_1)))
+	mod = math.cos(math.pi/n) 
+
+	a = A+B*mod-C
+	b = 2*A*radius+B*mod*radius+B*distance
+	c = -total_area 
+
+	t = -b+(b**2-4*a*c)**0.5
+	t = t/2/a
+	new_area = a*t**2+b*t
+	print("%d-sides: Thickness: %f Area: %f" % (n, t, new_area))  
+
+
+
 def sidearea(radius,thickness,sides):
     """Input: radius = (f) radius of inner polygon
               thickness = (f) distance between inner and outer polygon
@@ -782,6 +630,9 @@ def sidearea(radius,thickness,sides):
     sidearea = area/sides
 
     return sidearea
+def polygonarea(mdb):
+    a = mdb.models["standard"].rootAssembly
+    return a.getArea(a.instances["Frame-1"].faces)
 def const_mass(radius, thickness, sides,distance):
     """Input: radius = (f) outer radius of polygon
               thickness = (f) thickness of polygon
@@ -791,7 +642,9 @@ def const_mass(radius, thickness, sides,distance):
                  prints the values to console.
                  Note: Uniform area = Uniform mass for the 
 		 plane-strain simulation.
-       Output: none
+		 **This is only for uniform polygon area, for uniform simulation
+		   area, use the mass function 
+       Output: none  (prints to console) 
     """
     import math
     
@@ -815,8 +668,8 @@ def const_mass(radius, thickness, sides,distance):
     #flangearea = thickness*p_sin*(2*toplength+2*distance)-area_side-modifier*thickness*p_cos*thickness*p_sin
     plane_area = thickness*math.sin(math.pi/2-math.pi/sides)*(2*toplength+2*distance) 
     triangles = modifier*thickness*math.sin(math.pi/2-math.pi/sides)*thickness*math.cos(math.pi/2-math.pi/sides)
-    total_area = area + (plane_area)-2*area_side-4*triangles 
-    
+    total_area = area + 2*(plane_area)-2*area_side-4*triangles 
+    print(total_area)
     
     for n in range(4,14,2):
         if n == 4:
@@ -845,8 +698,8 @@ def const_mass(radius, thickness, sides,distance):
 
         
         #dist_calc = (flangearea + modifier*thick*p_cos*thick*p_sin+sidearea(radius,thick,n))/(2*thick*p_sin)-toplength
-        dist_calc = (total_area-n*sidearea(radius,thick,n)+2*sidearea(radius,thick,n)+4*modifier*thick*p_cos*thick*p_sin)/(2*thickness*math.sin(math.pi/2-math.pi/n))-toplength
-	print("%d-sides: Thickness: %f Distance: %f" % (n, thick, dist_calc))  
+        #dist_calc = (total_area-n*sidearea(radius,thick,n)+2*sidearea(radius,thick,n)+4*modifier*thick*p_cos*thick*p_sin)/(4*thickness*math.sin(math.pi/2-math.pi/n))-0.5*toplength
+	print("%d-sides: Thickness: %f" % (n, thick))  
 def getrf(session, layers, odb_name):
 #odb_name = "8-sides-smallblast.odb" as str 
     import section
