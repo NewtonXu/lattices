@@ -552,11 +552,13 @@ def partition(mdb, innerv, outerv, radius, distance, thickness):
     s.setPrimaryObject(option=SUPERIMPOSE)
     p = mdb.models['standard'].parts['Frame']
     p.projectReferencesOntoSketch(sketch=s, filter=COPLANAR_EDGES)
+
     for i in range(0, len(outerv[0])):
     	if abs(outerv[1][i]) < -inbottom:
             	s.Line(point1=(innerv[0][i],innerv[1][i]), point2=(outerv[0][i],outerv[1][i]))
     s.Line(point1=(3*left,-inbottom),point2=(-3*left,-inbottom))
     s.Line(point1=(3*left,inbottom),point2=(-3*left,inbottom))
+
     p = mdb.models['standard'].parts['Frame']
     f = p.faces
     pickedFaces = f.getByBoundingBox(20*left, 20*bottom,0,-20*left,-20*bottom,0)
@@ -581,27 +583,188 @@ def constraint(mdb,i):
         positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, 
         thickness=ON)
 
-def mass(radius,thickness,sides,distance,mdb):
+
+def const_distance(radius,thickness,sides,distance,thickness_list):
+    #plane_length = 2*(cos(180/n)*(r+t)+d)
+    import math
+    distance_list = []
+    plane_length = 2*(math.cos(math.pi/sides)*(radius+thickness)+distance)
+    print(plane_length)
+    for n in range(4,14,2):
+	index = (n-4)/2
+	t = thickness_list[index]
+	dist_calc = plane_length/2-math.cos(math.pi/n)*(radius+t)
+	distance_list.append(dist_calc)
+	print("%d-sides: distance: %f" % (n, dist_calc))
+    return distance_list
+def iterate(radius,thickness,n,distance,mdb):
     import math
     total_area = polygonarea(mdb)
-    for n in range(4,14,2):
-	theta_1 = math.pi/2-math.pi/n
-        theta_2 = math.pi/2-3*math.pi/n
+    length = 2.0*(math.cos(math.pi/n)*(radius+thickness)+distance)
+    print("Total area:"+str(total_area)+"Length"+str(length))
+    
+    theta_1 = math.pi/2.0-math.pi/n
+    theta_2 = math.pi/2.0-3.0*math.pi/n
+    A = (n-2)*math.sin(math.pi/n)*math.cos(math.pi/n)
+    B = 4.0*math.sin(math.pi/2-math.pi/n)
+    C = 2*math.sin(theta_1)*(math.cos(theta_1)-(math.sin(theta_1)*(math.cos(theta_2)-math.cos(theta_1)))/(math.sin(theta_2)-math.sin(theta_1)))
+    mod = float(math.cos(math.pi/n))
+    a = A-C
+    b = 2*A*radius+B*length/2.0
+    c = -total_area 
+    if a>0.001:
+        	t = -b+math.sqrt(b**2.0-4.0*a*c)
+                t = t/2.0/a
+    else:
+		t = total_area/(2.0*A*radius+B*length/2.0)
+    count = 0 
+    while count < 5:
+        dist = length/float(2) - mod*(radius+t)
+	area = (A+B*mod-C)*t**2+(2.0*A*radius+B*mod*radius+B*dist)*t
+        l = 2*(mod*(radius+t)+dist)
+        if error(total_area, length, area, l) > 0.00001:
+        	a=A+B*mod-C
+        	b = 2*A*radius+B*mod*radius+B*dist
+        	c = -total_area 
+
+		if a>0.001:
+        		temp = -b+math.sqrt(b**2.0-4.0*a*c)
+                	temp = temp/2.0/a
+		else:
+			temp = total_area/(2.0*A*radius+B*length/2.0)
+
+        	dist_2 = length/float(2) - mod*(radius+temp)
+	
+		area_2 = (A+B*mod-C)*temp**2+(2.0*A*radius+B*mod*radius+B*dist_2)*temp
+        	l_2  = 2*(mod*(radius+temp)+dist_2)
+       
+                if error(total_area, length, area_2, l_2) > 0.00001:
+                        t = temp 
+			dist = dist_2
+		else:
+                        count = 6
+	else:
+            count = 6
+	count += 1 
+    return t,dist
+def parameters_2(radius,thickness,sides,distance,mdb): 
+    import math
+    total_area = polygonarea(mdb)
+    length = 2.0*(math.cos(math.pi/sides)*(radius+thickness)+distance)
+    print("Total area:"+str(total_area)+"Length"+str(length))
+    for n in range(4,20,2):
+        theta_1 = math.pi/2.0-math.pi/n
+    	theta_2 = math.pi/2.0-3.0*math.pi/n
+    	A = (n-2)*math.sin(math.pi/n)*math.cos(math.pi/n)
+    	B = 4.0*math.sin(math.pi/2-math.pi/n)
+    	C = 2*math.sin(theta_1)*(math.cos(theta_1)-(math.sin(theta_1)*(math.cos(theta_2)-math.cos(theta_1)))/(math.sin(theta_2)-math.sin(theta_1)))
+    	mod = float(math.cos(math.pi/n))
+    	a = A-C
+    	b = 2*A*radius+B*length/2.0
+    	c = -total_area 
+    	if a>0.001:
+        	t = -b+math.sqrt(b**2.0-4.0*a*c)
+                t = t/2.0/a
+    	else:
+		t = total_area/(2.0*A*radius+B*length/2.0)
+    	count = 0 
+        while count < 5:
+        	dist = length/float(2) - mod*(radius+t)
+		area = (A+B*mod-C)*t**2+(2.0*A*radius+B*mod*radius+B*dist)*t
+        	l = 2*(mod*(radius+t)+dist)
+        	if error(total_area, length, area, l) > 0.00001:
+        		a=A+B*mod-C
+        		b = 2*A*radius+B*mod*radius+B*dist
+        		c = -total_area 
+
+			if a>0.001:
+        			temp = -b+math.sqrt(b**2.0-4.0*a*c)
+                		temp = temp/2.0/a
+			else:
+				temp = total_area/(2.0*A*radius+B*length/2.0)
+
+        		dist_2 = length/float(2) - mod*(radius+temp)
+	
+			area_2 = (A+B*mod-C)*temp**2+(2.0*A*radius+B*mod*radius+B*dist_2)*temp
+        		l_2  = 2*(mod*(radius+temp)+dist_2)
+
+       			t = temp 
+			dist = dist_2
+                	if error(total_area, length, area_2, l_2) < 0.00001:
+                        	count = 10
+		else:
+            		count = 10
+		count += 1 
+	if count != 10:
+            print("%d-sides did not converge, error exceeds preset parameter" % (n))
+	out_area = (A+B*mod-C)*t**2+(2*A*radius+B*mod*radius+B*dist)*t
+	out_length = 2*(mod*(radius+t)+dist)
+        print("%d-sides: Thickness: %f Length: %f Area: %f Length: %f" % (n, t, dist,out_area,out_length)) 
+
+def parameters(radius,thickness,sides,distance,mdb):
+    import math
+    total_area = polygonarea(mdb)
+    length = 2.0*(math.cos(math.pi/sides)*(radius+thickness)+distance)
+    print("Total area:"+str(total_area)+"Length"+str(length))
+    for n in range(4,20,2):
+        theta_1 = math.pi/2.0-math.pi/n
+        theta_2 = math.pi/2.0-3.0*math.pi/n
         A = (n-2)*math.sin(math.pi/n)*math.cos(math.pi/n)
-	B = 4*math.sin(math.pi/2-math.pi/n)
-        C = 2*(math.sin(theta_1)*math.cos(theta_1)-((math.sin(theta_1))**2)*(math.cos(theta_2)-math.cos(theta_1))/(math.sin(theta_2)-math.sin(theta_1)))
-	mod = math.cos(math.pi/n) 
+	B = 4.0*math.sin(math.pi/2-math.pi/n)
+        C = 2*math.sin(theta_1)*(math.cos(theta_1)-(math.sin(theta_1)*(math.cos(theta_2)-math.cos(theta_1)))/(math.sin(theta_2)-math.sin(theta_1)))
+        mod = float(math.cos(math.pi/n))
 
-	a = A+B*mod-C
-	b = 2*A*radius+B*mod*radius+B*distance
-	c = -total_area 
+        a = A-C
+        b = 2*A*radius+B*length/2.0
+        c = -total_area 
+	if a>0.001:
+        	t = -b+math.sqrt(b**2.0-4.0*a*c)
+                t = t/2.0/a
+	else:
+		t = total_area/(2.0*A*radius+B*length/2.0)
+        dist = length/float(2) - mod*(radius+t)
+	area = (A+B*mod-C)*t**2+(2.0*A*radius+B*mod*radius+B*dist)*t
+        l = 2*(mod*(radius+t)+dist)
+	#recheck t 
+        
+        a=A+B*mod-C
+        b = 2*A*radius+B*mod*radius+B*dist
+        c = -total_area 
 
-	t = -b+(b**2-4*a*c)**0.5
-	t = t/2/a
-	new_area = a*t**2+b*t
-	print("%d-sides: Thickness: %f Area: %f" % (n, t, new_area))  
+	if a>0.001:
+        	temp = -b+math.sqrt(b**2.0-4.0*a*c)
+                temp = temp/2.0/a
+	else:
+		temp = total_area/(2.0*A*radius+B*length/2.0)
 
+        dist_2 = length/float(2) - mod*(radius+temp)
+	
+	area_2 = (A+B*mod-C)*temp**2+(2.0*A*radius+B*mod*radius+B*dist_2)*temp
+        l_2  = 2*(mod*(radius+temp)+dist_2)
+	
+	print("%d-sides: Thickness: %f Length: %f Area: %f Length: %f T2: %f D2: %f" % (n, t, dist,area,l,temp,dist_2)) 
+	out_area = (A+B*mod-C)*temp**2+(2*A*radius+B*mod*radius+B*dist)*temp
+	out_length = 2*(mod*(radius+temp)+dist)
 
+	print("%d-sides: Thickness: %f Distance: %f Area: %f Length: %f" % (n,temp,dist,out_area,out_length))
+def error(area, length, area_2, length_2):
+    error_1 = abs(area_2-area)/area
+    error_2 = abs(length_2-length)/length
+    return(max(error_1,error_2))
+    
+def formula(radius,thickness,n,distance,mdb):
+    import math
+    print("Actual area:"+str(polygonarea(mdb)))
+    theta_1 = math.pi/2-math.pi/n
+    theta_2 = math.pi/2-3*math.pi/n
+    
+    A = (n-2)*math.sin(math.pi/n)*math.cos(math.pi/n)
+    B = 4*math.sin(math.pi/2-math.pi/n)
+    C = 2*math.sin(theta_1)*(math.cos(theta_1)-(math.sin(theta_1)*(math.cos(theta_2)-math.cos(theta_1)))/(math.sin(theta_2)-math.sin(theta_1)))
+    m = math.cos(math.pi/n) 
+
+    area = (A+B*m-C)*thickness**2+(2*A*radius+B*m*radius+B*distance)*thickness
+    print("Calculated area:"+str(area))
 
 def sidearea(radius,thickness,sides):
     """Input: radius = (f) radius of inner polygon
@@ -630,9 +793,11 @@ def sidearea(radius,thickness,sides):
     sidearea = area/sides
 
     return sidearea
+
 def polygonarea(mdb):
     a = mdb.models["standard"].rootAssembly
     return a.getArea(a.instances["Frame-1"].faces)
+
 def const_mass(radius, thickness, sides,distance):
     """Input: radius = (f) outer radius of polygon
               thickness = (f) thickness of polygon
@@ -790,10 +955,10 @@ def getu(session, layers, odb_name, type=2):
             NODAL, ((COMPONENT, 'U2'), )), ), nodeSets = nodeset)
     	array = session.xyDataObjects.values()
     	array = tuple(array)
-	if type == 0:
+	if type == 0 or type=="min":
     	    xy121 = min(array)
 	    type = "min"
-	elif type==1: 
+	elif type==1 or type=="avg": 
             xy121 = avg(array)
 	    type = "avg"
 	else:
@@ -811,3 +976,50 @@ def getu(session, layers, odb_name, type=2):
     	session.writeXYReport(fileName='U'+type+odb_name+str(i)+'.dat', xyData=outputset)
         #Be advised, i = 1 is the bottom-most layer
     	print('U'+type+odb_name+str(i)+'.dat')
+
+def getse(session, odb_name):
+#odb_name = "8-sides-smallblast.odb" as str 
+    import section
+    import regionToolset
+    import displayGroupMdbToolset as dgm
+    import part
+    import material
+    import assembly
+    import step
+    import interaction
+    import load
+    import mesh
+    import optimization
+    import job
+    import sketch
+    import visualization
+    import xyPlot
+    import displayGroupOdbToolset as dgo
+    import connectorBehavior
+    import time
+    from abaqus import *
+    from abaqusConstants import *
+
+    o1 = session.openOdb(name='/mnt/compute-0-4/newton/'+odb_name)
+    session.viewports['Viewport: 1'].setValues(displayedObject=o1)
+    odb = session.odbs['/mnt/compute-0-4/newton/'+odb_name]
+    for key in session.xyDataObjects.keys():
+	del session.xyDataObjects[key]
+    
+    #Extract strain energy 
+    session.XYDataFromHistory(name='XYData-1', odb=odb, 
+        outputVariableName='Strain energy: ALLSE for Whole Model', steps=(
+        'Apply load', ), )
+    array = session.xyDataObjects.values()
+    array = tuple(array)
+    xy121 = sum(array)
+    xy121.setValues(
+        sourceDescription="same")
+    #tmpName = xy121.name
+    #session.xyDataObjects.changeKey(tmpName, 'XYData-1')
+    x0 = session.xyDataObjects['XYData-1']
+   
+#    savetime = str(time.time())
+    session.xyReportOptions.setValues(numberFormat=AUTOMATIC)
+    session.writeXYReport(fileName='se'+odb_name+'.dat', xyData=(x0, ))
+    print('se'+odb_name+'.dat')

@@ -1,10 +1,3 @@
-#
-# Getting Started with Abaqus: Interactive Edition
-#
-# Script for frame example
-#
-#
-
 from abaqus import *
 from abaqusConstants import *
 session.viewports['Viewport: 1'].makeCurrent()
@@ -25,12 +18,10 @@ layers = 3
 startx = 0
 starty = 0
 radius = 0.5
-sides = 8
-thickness = 0.053260 #[mm]
-
-
+sides = 4
+thickness = 0.138751#[mm]
 pressure = 6.8 #[MPA]
-distance = 0.085
+distance = 0.188572
 seeder = 0.01
 
 data = tuple((0.000008 * t / 100, pressure * (1 - t / 100.0)) for t in range(101))
@@ -191,9 +182,6 @@ if layers > 1:
 	p = mdb.models['standard'].parts['Frame']
 	a.Instance(name='Frame-'+str(i), part = p, dependent = ON)
 	p1 = a.instances['Frame-'+str(i)]
-#		p1.translate(vector=(0,2*outapothem*(i-1),0.0))
-	
-			
 
 ##
 ##  Apply load to top plane
@@ -270,12 +258,7 @@ p = mdb.models['standard'].parts['planetop']
 session.viewports['Viewport: 1'].setValues(displayedObject=p)
 p = mdb.models['standard'].parts['planetop']
 p.generateMesh()
-mdb.models['standard'].historyOutputRequests['H-Output-1'].setValues(
-        frequency=100)
-#mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
-#        frequency=100)
-mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
-        timeInterval=5e-08)
+
 
 ##
 ## Translate instances 
@@ -286,12 +269,21 @@ if layers > 1:
 	p1 = a.instances['Frame-'+str(i)]
 	p1.translate(vector=(0,2*outapothem*(i-1),0.0))
 
+##
+## Set request frequencies
+##
+mdb.models['standard'].historyOutputRequests['H-Output-1'].setValues(
+        frequency=100)
+#mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
+#        frequency=100)
+mdb.models['standard'].fieldOutputRequests['F-Output-1'].setValues(
+        timeInterval=5e-08)
 
 
 ##
 ##  Create job
 ##
-name = '%d-s-%d-f-%d-l-%d-t-uni' % (sides, pressure, layers,thickness*100)
+name = '%d-final-sim' % (sides)
 mdb.Job(name=name, model='standard', 
     description='Two-dimensional overhead hoist frame')
 mdb.jobs[name].setValues(echoPrint=ON, modelPrint=ON, contactPrint=ON, 
